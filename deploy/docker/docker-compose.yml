@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cashflow-postgres
+    environment:
+      POSTGRES_USER: cashflow
+      POSTGRES_PASSWORD: cashflow
+      POSTGRES_DB: cashflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cashflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: cashflow-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/cashflow
+      KC_DB_USERNAME: cashflow
+      KC_DB_PASSWORD: cashflow
+      KC_HTTP_PORT: 8180
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8180:8180"
+    volumes:
+      - ./keycloak-realm.json:/opt/keycloak/data/import/cashflow-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  tenant-service:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: cashflow-tenant-service
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: cashflow
+      DB_PASSWORD: cashflow
+      DB_NAME: cashflow
+      DB_SSLMODE: disable
+      AUTH_ISSUER_URL: http://keycloak:8180/realms/cashflow
+      AUTH_AUDIENCE: cashflow-api
+      AUTH_LOCAL_ENABLED: "true"
+      AUTH_JWT_SECRET: dev-secret-change-me-in-production
+      OTEL_ENABLED: "false"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

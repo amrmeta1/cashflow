@@ -1,0 +1,13 @@
+bin/
+.git/
+.github/
+.gitignore
+.env
+.env.*
+*.md
+deploy/terraform/
+.terraform/
+*.tfstate*
+coverage.out
+.idea/
+.vscode/

@@ -1,0 +1,874 @@
+openapi: "3.1.0"
+info:
+  title: CashFlow.ai Tenant & Identity API
+  description: Multi-tenant SaaS foundation for CashFlow.ai — agentic financial management for GCC SMEs.
+  version: "1.0.0"
+  contact:
+    name: Finch Engineering
+    email: eng@finch.co
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Tenants
+    description: Tenant (organization) management
+  - name: Users
+    description: User management within a tenant
+  - name: Roles
+    description: Role and permission management
+  - name: Memberships
+    description: Tenant membership management
+  - name: Audit
+    description: Audit log access
+  - name: Health
+    description: Health check
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user (local auth)
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, full_name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: secureP@ss1
+                full_name:
+                  type: string
+                  example: Ahmed Al-Rashid
+                tenant_id:
+                  type: string
+                  format: uuid
+                  description: Optional tenant to join on registration
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email/password
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: secureP@ss1
+                tenant_id:
+                  type: string
+                  format: uuid
+                  description: Specify tenant context (uses first membership if omitted)
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_TokenPair"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      operationId: getProfile
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/tenants:
+    post:
+      tags: [Tenants]
+      summary: Create a new tenant
+      operationId: createTenant
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantInput"
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Tenant"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    get:
+      tags: [Tenants]
+      summary: List tenants
+      operationId: listTenants
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Tenant list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_TenantList"
+
+  /api/v1/tenants/{tenantID}:
+    parameters:
+      - name: tenantID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Tenants]
+      summary: Get tenant by ID
+      operationId: getTenant
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Tenant"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Tenants]
+      summary: Update tenant
+      operationId: updateTenant
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantInput"
+      responses:
+        "200":
+          description: Tenant updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Tenant"
+    delete:
+      tags: [Tenants]
+      summary: Soft-delete tenant
+      operationId: deleteTenant
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Tenant deleted
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: List users in current tenant
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/XTenantID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_UserList"
+
+  /api/v1/users/{userID}:
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      operationId: getUser
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_User"
+    put:
+      tags: [Users]
+      summary: Update user
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserInput"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_User"
+    delete:
+      tags: [Users]
+      summary: Soft-delete user
+      operationId: deleteUser
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: User deleted
+
+  /api/v1/roles:
+    post:
+      tags: [Roles]
+      summary: Create role in current tenant
+      operationId: createRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/XTenantID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleInput"
+      responses:
+        "201":
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Role"
+    get:
+      tags: [Roles]
+      summary: List roles in current tenant
+      operationId: listRoles
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/XTenantID"
+      responses:
+        "200":
+          description: Role list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_RoleList"
+
+  /api/v1/roles/{roleID}:
+    parameters:
+      - name: roleID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Roles]
+      summary: Get role by ID
+      operationId: getRole
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Role details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Role"
+    put:
+      tags: [Roles]
+      summary: Update role
+      operationId: updateRole
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleInput"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Role"
+    delete:
+      tags: [Roles]
+      summary: Delete role
+      operationId: deleteRole
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Role deleted
+
+  /api/v1/permissions:
+    get:
+      tags: [Roles]
+      summary: List all available permissions
+      operationId: listPermissions
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Permission list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_PermissionList"
+
+  /api/v1/memberships:
+    post:
+      tags: [Memberships]
+      summary: Add a user to current tenant
+      operationId: addMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/XTenantID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, role_id]
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                role_id:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Membership created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Membership"
+
+  /api/v1/memberships/{membershipID}/role:
+    put:
+      tags: [Memberships]
+      summary: Change a member's role
+      operationId: changeMemberRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: membershipID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role_id]
+              properties:
+                role_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Membership updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_Membership"
+
+  /api/v1/memberships/{membershipID}:
+    delete:
+      tags: [Memberships]
+      summary: Remove a member from tenant
+      operationId: removeMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: membershipID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Membership removed
+
+  /api/v1/audit-logs:
+    get:
+      tags: [Audit]
+      summary: List audit logs for current tenant
+      operationId: listAuditLogs
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/XTenantID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse_AuditLogList"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    XTenantID:
+      name: X-Tenant-ID
+      in: header
+      required: false
+      description: Tenant ID (overridden by JWT tenant_id claim if present)
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "validation error: name and slug are required"
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Finch Capital
+        slug:
+          type: string
+          example: finch-capital
+        plan:
+          type: string
+          example: free
+        status:
+          type: string
+          enum: [active, suspended, deleted]
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTenantInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          example: Finch Capital
+        slug:
+          type: string
+          example: finch-capital
+        plan:
+          type: string
+          example: free
+        metadata:
+          type: object
+
+    UpdateTenantInput:
+      type: object
+      properties:
+        name:
+          type: string
+        plan:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended]
+        metadata:
+          type: object
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        full_name:
+          type: string
+        avatar_url:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled, deleted]
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateUserInput:
+      type: object
+      properties:
+        full_name:
+          type: string
+        avatar_url:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: admin
+        description:
+          type: string
+        is_system:
+          type: boolean
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateRoleInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: accountant
+        description:
+          type: string
+        permission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    UpdateRoleInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        permission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    Permission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        resource:
+          type: string
+          example: tenant
+        action:
+          type: string
+          example: read
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Membership:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, invited, disabled]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor_id:
+          type: string
+          format: uuid
+          nullable: true
+        action:
+          type: string
+          example: user.login
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+        metadata:
+          type: object
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          example: 900
+        token_type:
+          type: string
+          example: Bearer
+
+    Meta:
+      type: object
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    # Wrapped API responses
+    APIResponse_Tenant:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Tenant"
+    APIResponse_TenantList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tenant"
+        meta:
+          $ref: "#/components/schemas/Meta"
+    APIResponse_User:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/User"
+    APIResponse_UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        meta:
+          $ref: "#/components/schemas/Meta"
+    APIResponse_Role:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Role"
+    APIResponse_RoleList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+    APIResponse_PermissionList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
+    APIResponse_Membership:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Membership"
+    APIResponse_AuditLogList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        meta:
+          $ref: "#/components/schemas/Meta"
+    APIResponse_TokenPair:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/TokenPair"
