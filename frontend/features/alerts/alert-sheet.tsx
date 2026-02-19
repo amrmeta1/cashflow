@@ -110,7 +110,7 @@ export function AlertSheet({
                     <p className="text-xs text-muted-foreground mb-1">
                       {isAr ? "المبلغ المرتبط" : "Related amount"}
                     </p>
-                    <p className="text-lg font-semibold tabular outflow">
+                    <p className="text-lg font-semibold tabular-nums outflow">
                       {formatCurrency(alert.related_amount, "SAR", locale)}
                     </p>
                   </section>

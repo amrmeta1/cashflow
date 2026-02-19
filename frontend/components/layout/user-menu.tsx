@@ -1,33 +1,74 @@
 "use client";
 
 import { signOut, useSession } from "next-auth/react";
-import { LogOut, User } from "lucide-react";
+import { LogOut, Settings, CreditCard, User, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";
-import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function UserMenu() {
   const { data: session } = useSession();
-  const { t } = useI18n();
+  const { locale } = useI18n();
+  const router = useRouter();
+  const isAr = locale === "ar";
 
   if (!session?.user) return null;
 
+  const displayName = session.user.name ?? session.user.email ?? "User";
+  const initials = displayName.charAt(0).toUpperCase();
+
   return (
-    <div className="flex items-center gap-3">
-      <div className="hidden md:flex flex-col items-end text-sm">
-        <span className="font-medium">{session.user.name ?? session.user.email}</span>
-        <span className="text-xs text-muted-foreground">{session.user.email}</span>
-      </div>
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
-        {(session.user.name ?? session.user.email ?? "U").charAt(0).toUpperCase()}
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => signOut({ callbackUrl: "/login" })}
-        title={t.auth.logout}
-      >
-        <LogOut className="h-4 w-4" />
-      </Button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-accent transition-colors outline-none">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
+            {initials}
+          </div>
+          <div className="hidden md:flex flex-col items-start leading-tight">
+            <span className="text-xs font-medium max-w-[100px] truncate">{displayName}</span>
+            <span className="text-[10px] text-muted-foreground max-w-[100px] truncate">{session.user.email}</span>
+          </div>
+          <ChevronDown className="h-3 w-3 text-muted-foreground hidden md:block" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="font-normal py-2">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-semibold truncate">{displayName}</span>
+            <span className="text-xs text-muted-foreground truncate">{session.user.email}</span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="gap-2 text-xs cursor-pointer"
+          onClick={() => router.push("/app/settings/organization")}
+        >
+          <Settings className="h-3.5 w-3.5" />
+          {isAr ? "الإعدادات" : "Settings"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="gap-2 text-xs cursor-pointer"
+          onClick={() => router.push("/app/billing")}
+        >
+          <CreditCard className="h-3.5 w-3.5" />
+          {isAr ? "الفوترة" : "Billing"}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          {isAr ? "تسجيل الخروج" : "Sign out"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

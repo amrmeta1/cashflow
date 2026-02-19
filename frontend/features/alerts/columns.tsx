@@ -180,7 +180,7 @@ export function buildAlertColumns(isAr: boolean): ColumnDef<Alert, any>[] {
       size: 100,
       header: () => <span>{isAr ? "الوقت" : "Time"}</span>,
       cell: ({ getValue }) => (
-        <span className="tabular text-muted-foreground whitespace-nowrap">
+        <span className="tabular-nums text-muted-foreground whitespace-nowrap">
           {relativeTime(getValue<string>(), isAr)}
         </span>
       ),

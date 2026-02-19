@@ -22,8 +22,9 @@ export function Sidebar() {
   return (
     <TooltipProvider delayDuration={0}>
       <aside
+        data-sidebar
         className={cn(
-          "hidden md:flex flex-col border-e bg-card transition-all duration-200 shrink-0",
+          "hidden md:flex flex-col border-e bg-card transition-all duration-200 shrink-0 print:hidden",
           collapsed ? "w-[52px]" : "w-[240px]"
         )}
       >

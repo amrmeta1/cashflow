@@ -15,7 +15,7 @@ function AppShellSkeleton() {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar skeleton */}
-      <div className="hidden md:flex flex-col w-[220px] border-e bg-card shrink-0">
+      <div className="hidden md:flex flex-col w-[240px] border-e bg-card shrink-0">
         <div className="flex h-12 items-center border-b px-3 gap-2">
           <Skeleton className="h-7 w-7 rounded-md" />
           <Skeleton className="h-4 w-24" />

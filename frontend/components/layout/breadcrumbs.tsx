@@ -24,6 +24,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   security: "Security",
   audit: "Audit Log",
   onboarding: "Onboarding",
+  analytics: "Analytics",
+  waterfall: "Cash Flow",
+  budget: "Budget vs Actual",
 };
 
 const SEGMENT_LABELS_AR: Record<string, string> = {
@@ -44,6 +47,9 @@ const SEGMENT_LABELS_AR: Record<string, string> = {
   security: "الأمان",
   audit: "سجل المراجعة",
   onboarding: "الإعداد",
+  analytics: "التحليلات",
+  waterfall: "التدفق النقدي",
+  budget: "الميزانية مقابل الفعلي",
 };
 
 export function Breadcrumbs() {

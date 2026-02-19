@@ -31,7 +31,7 @@ function UsageMeterRow({ meter, isAr }: { meter: UsageMeter; isAr: boolean }) {
           <Icon className="h-3.5 w-3.5" />
           {isAr ? meter.label_ar : meter.label_en}
         </div>
-        <span className="text-xs tabular font-medium">
+        <span className="text-xs tabular-nums font-medium">
           {meter.used.toLocaleString()} / {meter.limit.toLocaleString()}
           <span className="text-muted-foreground ms-1">({pct}%)</span>
         </span>

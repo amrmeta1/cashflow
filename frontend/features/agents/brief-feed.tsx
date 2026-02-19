@@ -82,7 +82,7 @@ export function BriefFeed({ items, isLoading, isAr }: BriefFeedProps) {
         return (
           <div key={item.id} className="flex items-start gap-4 px-5 py-4 hover:bg-muted/20 transition-colors">
             {/* Timestamp */}
-            <span className="text-xs text-muted-foreground tabular w-10 shrink-0 pt-0.5 text-end">
+            <span className="text-xs text-muted-foreground tabular-nums w-10 shrink-0 pt-0.5 text-end">
               {item.time}
             </span>
 
