@@ -6,13 +6,60 @@ import type {
   Category,
   TransactionType,
   TransactionStatus,
+  Counterparty,
 } from "./types";
 import { CATEGORIES } from "./types";
 
-const COUNTERPARTIES = [
-  "Saudi Aramco", "SABIC", "Al Rajhi Bank", "STC", "Mobily",
-  "Jarir Bookstore", "Panda Retail", "Careem", "Noon", "Amazon SA",
-  "Ministry of Finance", "GOSI", "Zain KSA", "Riyad Bank", "NCB",
+const COUNTERPARTIES: Counterparty[] = [
+  // ── Scored clients (AI profiled) ──────────────────────────────────────────
+  {
+    name: "TechCorp L.L.C",
+    type: "client",
+    aiTrustScore: "A+",
+    averageDelayDays: 0,
+    aiInsight: "Reliable payer. Usually settles invoices exactly on or before the due date.",
+    aiInsightAr: "عميل موثوق. يسدد الفواتير عادةً في تاريخ الاستحقاق أو قبله.",
+  },
+  {
+    name: "Gulf Ventures Co.",
+    type: "client",
+    aiTrustScore: "B",
+    averageDelayDays: 8,
+    aiInsight: "Generally reliable. Occasional minor delays of up to 10 days. Low risk.",
+    aiInsightAr: "موثوق بشكل عام. تأخيرات طفيفة أحياناً لا تتجاوز ١٠ أيام. مخاطر منخفضة.",
+  },
+  {
+    name: "Al-Noor Contracting",
+    type: "client",
+    aiTrustScore: "C",
+    averageDelayDays: 24,
+    aiInsight: "Warning: Habitual late payer. AI has automatically shifted expected cash-in for this client by +24 days in the forecast model.",
+    aiInsightAr: "تحذير: عميل متأخر بشكل معتاد. قام الذكاء الاصطناعي بتأجيل التدفقات المتوقعة لهذا العميل بمقدار +٢٤ يوماً في نموذج التوقعات.",
+  },
+  {
+    name: "Horizon Real Estate",
+    type: "client",
+    aiTrustScore: "F",
+    averageDelayDays: 60,
+    aiInsight: "Critical Risk: Severe historical delays averaging 60 days. Recommended to switch to upfront payment terms immediately.",
+    aiInsightAr: "خطر حرج: تأخيرات تاريخية شديدة بمتوسط ٦٠ يوماً. يُوصى بالتحويل فوراً إلى شروط الدفع المسبق.",
+  },
+  // ── Vendors (no AI score) ─────────────────────────────────────────────────
+  { name: "Saudi Aramco",       type: "vendor" },
+  { name: "SABIC",              type: "vendor" },
+  { name: "Al Rajhi Bank",      type: "vendor" },
+  { name: "STC",                type: "vendor" },
+  { name: "Mobily",             type: "vendor" },
+  { name: "Jarir Bookstore",    type: "vendor" },
+  { name: "Panda Retail",       type: "vendor" },
+  { name: "Careem",             type: "vendor" },
+  { name: "Noon",               type: "vendor" },
+  { name: "Amazon SA",          type: "vendor" },
+  { name: "Ministry of Finance",type: "vendor" },
+  { name: "GOSI",               type: "vendor" },
+  { name: "Zain KSA",           type: "vendor" },
+  { name: "Riyad Bank",         type: "vendor" },
+  { name: "NCB",                type: "vendor" },
 ];
 
 const ACCOUNTS = [
@@ -49,8 +96,8 @@ function generateTransactions(): Transaction[] {
       currency: "SAR",
       type: isInflow ? "inflow" : Math.random() > 0.9 ? "transfer" : "outflow",
       status: randomItem(statuses),
-      description: `${isInflow ? "Payment from" : "Payment to"} ${randomItem(COUNTERPARTIES)}`,
       counterparty: randomItem(COUNTERPARTIES),
+      description: `${isInflow ? "Payment from" : "Payment to"} ${randomItem(COUNTERPARTIES).name}`,
       category,
       account_id: account.id,
       account_name: account.name,
@@ -82,7 +129,7 @@ export async function fetchTransactions(
     rows = rows.filter(
       (t) =>
         t.description.toLowerCase().includes(q) ||
-        t.counterparty.toLowerCase().includes(q) ||
+        t.counterparty.name.toLowerCase().includes(q) ||
         t.reference?.toLowerCase().includes(q)
     );
   }

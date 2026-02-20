@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { ClientTrustBadge } from "@/components/transactions/client-trust-badge";
 import type { Transaction } from "./types";
 
 const TYPE_STYLES: Record<Transaction["type"], string> = {
@@ -92,9 +93,15 @@ export function buildTransactionColumns({
       cell: ({ getValue, row }) => (
         <div className="min-w-0">
           <p className="truncate text-sm font-medium max-w-[220px]">{getValue<string>()}</p>
-          <p className="text-xs text-muted-foreground truncate max-w-[220px]">
-            {row.original.counterparty}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+              {row.original.counterparty.name}
+            </p>
+            <ClientTrustBadge
+              counterparty={row.original.counterparty}
+              isAr={isAr}
+            />
+          </div>
         </div>
       ),
     },

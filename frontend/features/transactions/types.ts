@@ -2,6 +2,17 @@ export type TransactionType = "inflow" | "outflow" | "transfer";
 
 export type TransactionStatus = "cleared" | "pending" | "reconciled";
 
+export type TrustScore = "A+" | "B" | "C" | "F";
+
+export interface Counterparty {
+  name: string;
+  type: "client" | "vendor";
+  aiTrustScore?: TrustScore;
+  averageDelayDays?: number;
+  aiInsight?: string;
+  aiInsightAr?: string;
+}
+
 export const CATEGORIES = [
   "Revenue",
   "Payroll",
@@ -29,7 +40,7 @@ export interface Transaction {
   type: TransactionType;
   status: TransactionStatus;
   description: string;
-  counterparty: string;
+  counterparty: Counterparty;
   category: Category;
   account_id: string;
   account_name: string;
