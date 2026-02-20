@@ -22,7 +22,7 @@ interface SidebarNavProps {
   onNavigate?: () => void;
 }
 
-const GROUP_ORDER: NavGroup[] = ["main", "analytics", "settings"];
+const GROUP_ORDER: NavGroup[] = ["csuite", "ai", "ops", "settings"];
 
 export function SidebarNav({ items, collapsed = false, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
@@ -35,7 +35,7 @@ export function SidebarNav({ items, collapsed = false, onNavigate }: SidebarNavP
       acc[g] = items.filter((i) => i.group === g);
       return acc;
     },
-    { main: [], analytics: [], settings: [] }
+    { csuite: [], ai: [], ops: [], settings: [] }
   );
 
   return (
@@ -48,11 +48,11 @@ export function SidebarNav({ items, collapsed = false, onNavigate }: SidebarNavP
         return (
           <div key={group} className="mb-1">
             {!collapsed && (
-              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 select-none truncate">
+              <p suppressHydrationWarning className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 select-none truncate">
                 {label}
               </p>
             )}
-            {collapsed && group !== "main" && (
+            {collapsed && group !== "csuite" && (
               <div className="my-1 mx-2 border-t" />
             )}
             <div className="px-1.5 space-y-0.5">
@@ -78,7 +78,7 @@ export function SidebarNav({ items, collapsed = false, onNavigate }: SidebarNavP
                     )}
                     <item.icon className="h-4 w-4 shrink-0" />
                     {!collapsed && (
-                      <span className="truncate">{t.nav[item.translationKey]}</span>
+                      <span suppressHydrationWarning className="truncate">{t.nav[item.translationKey]}</span>
                     )}
                   </Link>
                 );
@@ -88,7 +88,7 @@ export function SidebarNav({ items, collapsed = false, onNavigate }: SidebarNavP
                     <Tooltip key={item.key}>
                       <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
                       <TooltipContent side={isRtl ? "left" : "right"}>
-                        {t.nav[item.translationKey]}
+                        <span suppressHydrationWarning>{t.nav[item.translationKey]}</span>
                       </TooltipContent>
                     </Tooltip>
                   );

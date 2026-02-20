@@ -5,6 +5,7 @@ import { TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n/context";
+import { useCompany } from "@/contexts/CompanyContext";
 import { MasterForecastChart, type ForecastDataPoint } from "@/components/forecast/MasterForecastChart";
 
 // ── Master forecast mock data (12 weeks) ──────────────────────────────────────
@@ -27,7 +28,9 @@ const MASTER_DATA: ForecastDataPoint[] = [
 // ── Main page ──────────────────────────────────────────────────────────────
 export default function ForecastPage() {
   const { locale, dir } = useI18n();
+  const { profile } = useCompany();
   const isAr = locale === "ar";
+  const curr = profile.currency || "SAR";
 
   return (
     <div dir={dir} className="flex flex-col h-full overflow-y-auto bg-background">
@@ -51,10 +54,10 @@ export default function ForecastPage() {
           <p className="text-sm text-destructive leading-relaxed">
             {isAr ? (
               <><span className="font-semibold">تنبيه مستشار AI:</span> تم رصد عجز نقدي متوقع بقيمة{" "}
-              <span className="font-bold">SAR 45,000</span> في الأسبوع العاشر. يُنصح فوراً بتأجيل مدفوعات الموردين غير الحرجة.</>
+              <span className="font-bold">{curr} 45,000</span> في الأسبوع العاشر. يُنصح فوراً بتأجيل مدفوعات الموردين غير الحرجة.</>
             ) : (
               <><span className="font-semibold">Mustashar AI Alert:</span> Projected cash shortfall of{" "}
-              <span className="font-bold">SAR 45,000</span> detected in Week 10. Immediate action required to defer non-critical vendor payments.</>
+              <span className="font-bold">{curr} 45,000</span> detected in Week 10. Immediate action required to defer non-critical vendor payments.</>
             )}
           </p>
           <Button
@@ -102,7 +105,7 @@ export default function ForecastPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <p className="text-xl font-bold tabular-nums tracking-tighter">SAR 450,000</p>
+              <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tighter">{curr} 450,000</p>
             </CardContent>
           </Card>
 
@@ -113,7 +116,7 @@ export default function ForecastPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <p className="text-xl font-bold tabular-nums tracking-tighter text-destructive">-SAR 145k/mo</p>
+              <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tighter text-destructive">-{curr} 145k/mo</p>
             </CardContent>
           </Card>
 
@@ -124,7 +127,7 @@ export default function ForecastPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <p className="text-xl font-bold tabular-nums tracking-tighter text-destructive">-SAR 45,000</p>
+              <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tighter text-destructive">-{curr} 45,000</p>
               <p className="text-xs text-muted-foreground mt-0.5">{isAr ? "الأسبوع ١٠" : "Week 10"}</p>
             </CardContent>
           </Card>

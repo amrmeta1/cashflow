@@ -30,6 +30,7 @@ import {
 import { SafeCashCard } from "@/components/dashboard/safe-cash-card";
 import { useI18n } from "@/lib/i18n/context";
 import { useTenant } from "@/lib/hooks/use-tenant";
+import { useCompany } from "@/contexts/CompanyContext";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
@@ -128,8 +129,10 @@ type DateRange = (typeof DATE_RANGES)[number];
 export default function DashboardPage() {
   const { t, locale, dir } = useI18n();
   const { currentTenant } = useTenant();
+  const { profile } = useCompany();
   const isAr = locale === "ar";
-  const curr = "SAR";
+  const curr = profile.currency || "SAR";
+  const taxAuth = profile.taxAuthority || "ZATCA";
   const loc = locale === "ar" ? "ar-SA" : "en-SA";
 
   const [dateRange, setDateRange] = useState<DateRange>("30d");
@@ -185,7 +188,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-normal text-muted-foreground">{curr}</span>
+              <span suppressHydrationWarning className="text-sm font-normal text-muted-foreground">{curr}</span>
               <span className="text-2xl font-semibold tracking-tight tabular-nums">
                 152,340
               </span>
@@ -209,7 +212,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-normal text-muted-foreground">{curr}</span>
+              <span suppressHydrationWarning className="text-sm font-normal text-muted-foreground">{curr}</span>
               <span className="text-2xl font-semibold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-500">
                 48,200
               </span>
@@ -235,7 +238,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-normal text-muted-foreground">{curr}</span>
+              <span suppressHydrationWarning className="text-sm font-normal text-muted-foreground">{curr}</span>
               <span className="text-2xl font-semibold tracking-tight tabular-nums text-rose-600 dark:text-rose-500">
                 31,850
               </span>
@@ -251,7 +254,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── AI Cash Ring-Fencing ── */}
-      <SafeCashCard isAr={isAr} currency={curr} />
+      <SafeCashCard isAr={isAr} currency={curr} taxAuthority={taxAuth} />
 
       {/* ── Forecast chart ── */}
       <Card>

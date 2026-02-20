@@ -76,11 +76,12 @@ function pct(n: number) {
 interface SafeCashCardProps {
   isAr?: boolean;
   currency?: string;
+  taxAuthority?: string;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function SafeCashCard({ isAr = false, currency = "SAR" }: SafeCashCardProps) {
+export function SafeCashCard({ isAr = false, currency = "SAR", taxAuthority = "ZATCA" }: SafeCashCardProps) {
   const labels = isAr ? LABELS_AR : LABELS_EN;
 
   return (
@@ -156,7 +157,7 @@ export function SafeCashCard({ isAr = false, currency = "SAR" }: SafeCashCardPro
           <p className="leading-relaxed">
             {isAr
               ? "رؤية مستشار AI: التزام ضريبة القيمة المضافة للربع الأول مستحق خلال ١٨ يومًا. قمنا تلقائيًا بتجميد ١٨٬٥٠٠ ريال من ميزانيتك التشغيلية لضمان الامتثال وتجنب غرامات هيئة الزكاة والضريبة والجمارك."
-              : "Mustashar AI Insight: Your Q1 VAT liability is due in 18 days. We've automatically locked SAR 18,500 from your operational budget to ensure compliance and avoid ZATCA penalties."}
+              : `Mustashar AI Insight: Your Q1 VAT liability is due in 18 days. We've automatically locked ${currency} 18,500 from your operational budget to ensure compliance and avoid ${taxAuthority} penalties.`}
           </p>
         </div>
 
