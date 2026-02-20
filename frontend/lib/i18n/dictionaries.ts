@@ -48,6 +48,7 @@ export const dictionaries = {
       scenarioPlanner: "Scenario Planner",
       budget: "Budget vs Actual",
       hq: "HQ Hub (المركز الرئيسي)",
+      cashCollect: "Smart CashCollect",
     },
     tenant: {
       switchOrg: "Switch Organization",
@@ -311,6 +312,7 @@ export const dictionaries = {
       scenarioPlanner: "مخطط السيناريوهات",
       budget: "الميزانية مقابل الفعلي",
       hq: "المركز الرئيسي (HQ)",
+      cashCollect: "التحصيل الذكي",
     },
     tenant: {
       switchOrg: "تبديل المنظمة",
