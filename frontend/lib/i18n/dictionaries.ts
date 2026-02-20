@@ -47,6 +47,7 @@ export const dictionaries = {
       fxRadar: "FX Radar",
       scenarioPlanner: "Scenario Planner",
       budget: "Budget vs Actual",
+      hq: "HQ Hub (المركز الرئيسي)",
     },
     tenant: {
       switchOrg: "Switch Organization",
@@ -309,6 +310,7 @@ export const dictionaries = {
       fxRadar: "رادار العملات",
       scenarioPlanner: "مخطط السيناريوهات",
       budget: "الميزانية مقابل الفعلي",
+      hq: "المركز الرئيسي (HQ)",
     },
     tenant: {
       switchOrg: "تبديل المنظمة",

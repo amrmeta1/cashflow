@@ -13,6 +13,7 @@ import {
   CreditCard,
   Receipt,
   Building2,
+  Landmark,
   Users,
   ShieldCheck,
   KeyRound,
@@ -38,6 +39,16 @@ const ADMIN_OWNER: Role[] = ["tenant_admin", "owner"];
 const FINANCE_AND_ABOVE: Role[] = ["tenant_admin", "owner", "finance_manager"];
 
 export const NAV_ITEMS: NavItem[] = [
+  // ── HQ (CEO Master View) ─────────────────────────────────────────────────
+  {
+    key: "hq",
+    translationKey: "hq",
+    href: "/app/hq",
+    icon: Landmark,
+    allowedRoles: ADMIN_OWNER,
+    group: "main",
+  },
+
   // ── Main ────────────────────────────────────────────────────────────────
   {
     key: "dashboard",
