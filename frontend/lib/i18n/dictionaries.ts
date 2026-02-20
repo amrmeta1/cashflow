@@ -29,6 +29,7 @@ export const dictionaries = {
     nav: {
       dashboard: "Dashboard",
       transactions: "Transactions",
+      payables: "Payables",
       import: "Import",
       forecast: "Forecast",
       alerts: "Alerts",
@@ -288,6 +289,7 @@ export const dictionaries = {
     nav: {
       dashboard: "لوحة المعلومات",
       transactions: "المعاملات",
+      payables: "المدفوعات",
       import: "استيراد",
       forecast: "التوقعات",
       alerts: "التنبيهات",

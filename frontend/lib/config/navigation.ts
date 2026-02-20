@@ -9,6 +9,7 @@ import {
   BarChart2,
   Target,
   CreditCard,
+  Receipt,
   Building2,
   Users,
   ShieldCheck,
@@ -50,6 +51,14 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/app/transactions",
     icon: ArrowLeftRight,
     allowedRoles: ALL_ROLES,
+    group: "main",
+  },
+  {
+    key: "payables",
+    translationKey: "payables",
+    href: "/app/payables",
+    icon: Receipt,
+    allowedRoles: FINANCE_AND_ABOVE,
     group: "main",
   },
   {
