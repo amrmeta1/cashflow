@@ -50,6 +50,9 @@ func NewIngestionRouter(deps IngestionRouterDeps) http.Handler {
 			// Transactions
 			r.Get("/transactions", deps.Ingestion.ListTransactions)
 
+			// Cash position (treasury/forecast read)
+			r.With(middleware.RequirePermission(auth.PermTreasuryRead)).Get("/cash-position", deps.Ingestion.GetCashPosition)
+
 			// Bank accounts
 			r.Post("/bank-accounts", deps.Ingestion.CreateBankAccount)
 

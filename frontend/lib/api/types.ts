@@ -148,3 +148,28 @@ export interface TransactionFilters {
   limit?: number;
   offset?: number;
 }
+
+// ── Cash Position (ingestion) ──────────────────────────────────
+export interface CashPositionAccount {
+  accountId: string;
+  name: string;
+  currency: string;
+  balance: number;
+}
+
+export interface CashPositionTotalByCurrency {
+  currency: string;
+  balance: number;
+}
+
+export interface CashPositionTotals {
+  byCurrency: CashPositionTotalByCurrency[];
+}
+
+export interface CashPositionResponse {
+  tenantId: string;
+  asOf: string;
+  currencyMode: "native";
+  accounts: CashPositionAccount[];
+  totals: CashPositionTotals;
+}

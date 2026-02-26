@@ -255,6 +255,49 @@ func (uc *IngestionUseCase) EnqueueSyncAccounting(ctx context.Context, tenantID 
 	return job, nil
 }
 
+// GetCashPosition returns the cash position for a tenant as of a given date.
+// Balances are computed by summing bank_transactions.amount per account up to asOf (inclusive).
+func (uc *IngestionUseCase) GetCashPosition(ctx context.Context, tenantID uuid.UUID, asOf time.Time) (*domain.CashPositionResponse, error) {
+	accounts, _, err := uc.bankAccounts.ListByTenant(ctx, tenantID, 500, 0)
+	if err != nil {
+		return nil, fmt.Errorf("listing bank accounts: %w", err)
+	}
+
+	balances, err := uc.txns.SumBalancesByAccountUpTo(ctx, tenantID, asOf)
+	if err != nil {
+		return nil, fmt.Errorf("summing balances: %w", err)
+	}
+
+	asOfDate := asOf.Truncate(24 * time.Hour)
+	resp := &domain.CashPositionResponse{
+		TenantID:     tenantID.String(),
+		AsOf:         asOfDate.Format("2006-01-02"),
+		CurrencyMode: "native",
+		Accounts:     make([]domain.CashPositionAccount, 0, len(accounts)),
+		Totals:       domain.CashPositionTotals{ByCurrency: []domain.CashPositionTotalByCurrency{}},
+	}
+
+	totalsByCurrency := make(map[string]float64)
+	for _, acc := range accounts {
+		bal := balances[acc.ID]
+		resp.Accounts = append(resp.Accounts, domain.CashPositionAccount{
+			AccountID: acc.ID,
+			Name:      acc.Nickname,
+			Currency:  acc.Currency,
+			Balance:   bal,
+		})
+		totalsByCurrency[acc.Currency] += bal
+	}
+	for currency, balance := range totalsByCurrency {
+		resp.Totals.ByCurrency = append(resp.Totals.ByCurrency, domain.CashPositionTotalByCurrency{
+			Currency: currency,
+			Balance:  balance,
+		})
+	}
+
+	return resp, nil
+}
+
 // ── CSV helpers ─────────────────────────────────
 
 func buildColumnMap(header []string) map[string]int {

@@ -129,6 +129,36 @@ type RawBankTransactionRepository interface {
 type BankTransactionRepository interface {
 	BulkUpsert(ctx context.Context, tenantID uuid.UUID, txns []BankTransaction) (inserted int, err error)
 	List(ctx context.Context, filter TransactionFilter) ([]BankTransaction, int, error)
+	// SumBalancesByAccountUpTo returns per-account sum of transaction amounts with txn_date <= asOf (inclusive).
+	SumBalancesByAccountUpTo(ctx context.Context, tenantID uuid.UUID, asOf time.Time) (map[uuid.UUID]float64, error)
+}
+
+// CashPositionAccount is one account in a cash position response.
+type CashPositionAccount struct {
+	AccountID uuid.UUID `json:"accountId"`
+	Name      string    `json:"name"`
+	Currency  string    `json:"currency"`
+	Balance   float64   `json:"balance"`
+}
+
+// CashPositionTotalByCurrency is a total in one currency.
+type CashPositionTotalByCurrency struct {
+	Currency string  `json:"currency"`
+	Balance  float64 `json:"balance"`
+}
+
+// CashPositionResponse is the response for GET /tenants/{id}/cash-position.
+type CashPositionResponse struct {
+	TenantID     string                     `json:"tenantId"`
+	AsOf         string                     `json:"asOf"` // YYYY-MM-DD
+	CurrencyMode string                     `json:"currencyMode"`
+	Accounts     []CashPositionAccount      `json:"accounts"`
+	Totals       CashPositionTotals         `json:"totals"`
+}
+
+// CashPositionTotals holds totals by currency.
+type CashPositionTotals struct {
+	ByCurrency []CashPositionTotalByCurrency `json:"byCurrency"`
 }
 
 type IngestionJobRepository interface {

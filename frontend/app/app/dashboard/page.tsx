@@ -54,8 +54,9 @@ import {
 import { useI18n } from "@/lib/i18n/context";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { useEntity, entityBalanceInSAR, ENTITIES } from "@/contexts/EntityContext";
+import { useEntity, ENTITIES } from "@/contexts/EntityContext";
 import { useTenant } from "@/lib/hooks/use-tenant";
+import { useCashPosition } from "@/lib/hooks/useCashPosition";
 import { useDemo } from "@/contexts/DemoContext";
 import { useTransactions } from "@/features/transactions/hooks";
 import type { Transaction } from "@/features/transactions/types";
@@ -70,29 +71,9 @@ const CashFlowChart = dynamic(
   { ssr: false, loading: () => <Skeleton className="h-[430px] w-full rounded-xl" /> }
 );
 
-const BANK_ACCOUNTS = [
-  { nameEn: "QNB - Corporate Account", nameAr: "QNB - حساب الشركات", balance: 125400, share: 0.58 },
-  { nameEn: "CBQ - Payroll Account", nameAr: "CBQ - حساب الرواتب", balance: 54200, share: 0.25 },
-  { nameEn: "Masraf Al Rayan - Deposits", nameAr: "مصرف الريان - ودائع", balance: 38740, share: 0.17 },
-];
-
 const VISIBLE_ACCOUNTS = 2;
 const HEALTH_SCORE = 82;
-
-/** Mock total bank balance (SAR) per entity for dashboard; consolidated = sum of all */
-function getTotalBankForEntity(selectedId: string | "consolidated"): number {
-  if (selectedId === "consolidated") {
-    return ENTITIES.reduce((s, e) => s + entityBalanceInSAR(e), 0);
-  }
-  const byId: Record<string, number> = {
-    hq: 218_340,
-    riyadh: 320_000,
-    jeddah: 245_000,
-    dubai: 412_000 / 1.0222,
-    doha: 189_000 / 1.0312,
-  };
-  return byId[selectedId] ?? 218_340;
-}
+const BASE_TOTAL_FALLBACK = 218_340;
 
 const FORECAST_7D_BASE = [
   { day: "Mon", dayAr: "اثنين", balance: 218340 },
@@ -212,8 +193,6 @@ function ForecastTooltip({ active, payload, label, fmt, forecastData, isAr }: an
   );
 }
 
-const BASE_TOTAL = 218340;
-
 function toDateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -254,6 +233,7 @@ export default function DashboardPage() {
   const { fmt, fmtDual, fmtAxis, selected: currCode } = useCurrency();
   const { selectedId } = useEntity();
   const { currentTenant } = useTenant();
+  const { data: cashData, totalBalance: cashTotal, isLoading: cashLoading } = useCashPosition(currentTenant?.id);
   const demo = useDemo();
   const { data: transactions = [], isLoading: transactionsLoading } = useTransactions(currentTenant?.id, {});
   const curr = currCode;
@@ -269,6 +249,7 @@ export default function DashboardPage() {
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => defaultDateRange());
   const [dateFromInput, setDateFromInput] = useState(() => toDateOnly(defaultDateRange().from));
   const [dateToInput, setDateToInput] = useState(() => toDateOnly(defaultDateRange().to));
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
 
   const applyDateFilter = () => {
     const from = parseDateOnly(dateFromInput);
@@ -276,17 +257,22 @@ export default function DashboardPage() {
     if (from <= to) setDateRange({ from, to });
   };
 
-  const TOTAL_BANK = getTotalBankForEntity(selectedId);
+  const TOTAL_BANK = cashTotal ?? 0;
+  const bankAccountsFromApi = (cashData?.accounts ?? []).map((a) => ({
+    nameEn: a.name,
+    nameAr: a.name,
+    balance: a.balance,
+    share: TOTAL_BANK > 0 ? a.balance / TOTAL_BANK : 0,
+  }));
+  const visibleAccounts = showAllAccounts ? bankAccountsFromApi : bankAccountsFromApi.slice(0, VISIBLE_ACCOUNTS);
+  const hasMore = bankAccountsFromApi.length > VISIBLE_ACCOUNTS;
+
   const mockKpis = getMockKpisForRange(dateRange, TOTAL_BANK);
-  const forecastScale = TOTAL_BANK / BASE_TOTAL;
+  const forecastScale = TOTAL_BANK > 0 ? TOTAL_BANK / BASE_TOTAL_FALLBACK : 1;
   const FORECAST_7D = FORECAST_7D_BASE.map((row) => ({
     ...row,
     balance: Math.round(row.balance * forecastScale),
   }));
-
-  const [showAllAccounts, setShowAllAccounts] = useState(false);
-  const visibleAccounts = showAllAccounts ? BANK_ACCOUNTS : BANK_ACCOUNTS.slice(0, VISIBLE_ACCOUNTS);
-  const hasMore = BANK_ACCOUNTS.length > VISIBLE_ACCOUNTS;
 
   const handleExportCSV = () => {
     const kpiData = [
@@ -294,7 +280,7 @@ export default function DashboardPage() {
       { [isAr ? "المؤشر" : "Metric"]: isAr ? "إجمالي الإيرادات" : "Total Revenue", [isAr ? "القيمة" : "Value"]: formatForExport(112000, locale), [isAr ? "العملة" : "Currency"]: curr, [isAr ? "التغيير" : "Change"]: "+12%" },
       { [isAr ? "المؤشر" : "Metric"]: isAr ? "إجمالي المصروفات" : "Total Expenses", [isAr ? "القيمة" : "Value"]: formatForExport(79000, locale), [isAr ? "العملة" : "Currency"]: curr, [isAr ? "التغيير" : "Change"]: "-3.1%" },
       { [isAr ? "المؤشر" : "Metric"]: isAr ? "فترة التشغيل" : "Runway", [isAr ? "القيمة" : "Value"]: "8.3", [isAr ? "العملة" : "Currency"]: isAr ? "أشهر" : "months", [isAr ? "التغيير" : "Change"]: isAr ? "مستقر" : "Stable" },
-      ...BANK_ACCOUNTS.map((acc) => ({ [isAr ? "المؤشر" : "Metric"]: isAr ? acc.nameAr : acc.nameEn, [isAr ? "القيمة" : "Value"]: formatForExport(acc.balance, locale), [isAr ? "العملة" : "Currency"]: curr, [isAr ? "التغيير" : "Change"]: `${(acc.share * 100).toFixed(0)}%` })),
+      ...bankAccountsFromApi.map((acc) => ({ [isAr ? "المؤشر" : "Metric"]: isAr ? acc.nameAr : acc.nameEn, [isAr ? "القيمة" : "Value"]: formatForExport(acc.balance, locale), [isAr ? "العملة" : "Currency"]: curr, [isAr ? "التغيير" : "Change"]: `${(acc.share * 100).toFixed(0)}%` })),
     ];
     exportToCSV(kpiData, `dashboard-report-${new Date().toISOString().slice(0, 10)}`);
   };
@@ -684,7 +670,7 @@ export default function DashboardPage() {
               {hasMore && (
                 <div className="flex items-center justify-between pt-1 border-t border-border/50">
                   <button type="button" onClick={() => setShowAllAccounts(!showAllAccounts)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium">
-                    {showAllAccounts ? <><ChevronUp className="h-3 w-3" />{d.showLess}</> : <><ChevronDown className="h-3 w-3" />{d.showAll} ({BANK_ACCOUNTS.length})</>}
+                    {showAllAccounts ? <><ChevronUp className="h-3 w-3" />{d.showLess}</> : <><ChevronDown className="h-3 w-3" />{d.showAll} ({bankAccountsFromApi.length})</>}
                   </button>
                   <Link href="/app/cash-positioning" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
                     {t.nav.cashPositioning} →

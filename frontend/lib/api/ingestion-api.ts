@@ -5,6 +5,7 @@ import type {
   BankAccount,
   CreateBankAccountInput,
   CSVImportResult,
+  CashPositionResponse,
   TransactionFilters,
 } from "./types";
 
@@ -37,4 +38,13 @@ export async function createBankAccount(
   input: CreateBankAccountInput
 ): Promise<BankAccount> {
   return ingestionApi.post(`/tenants/${tenantId}/bank-accounts`, input);
+}
+
+export async function getCashPosition(
+  tenantId: string,
+  asOf?: string
+): Promise<CashPositionResponse> {
+  const params: Record<string, string> = {};
+  if (asOf) params.asOf = asOf;
+  return ingestionApi.get(`/tenants/${tenantId}/cash-position`, params);
 }

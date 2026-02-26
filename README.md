@@ -1,6 +1,6 @@
-# CashFlow.ai — Multi-Tenant Financial Platform
+# CashFlow / Tadfuq.ai — Multi-Tenant Financial Platform
 
-Production-grade multi-tenant SaaS backend for **CashFlow.ai**, an agentic financial management platform targeting GCC SMEs (Saudi Arabia, Qatar, UAE).
+Production-grade multi-tenant SaaS backend and Next.js frontend for **Tadfuq.ai** (marketing) / **CashFlow.ai** (app), an agentic financial management platform targeting GCC SMEs (Saudi Arabia, Qatar, UAE).
 
 ## Architecture Overview
 
@@ -97,6 +97,8 @@ Every security-relevant event is captured in `audit_logs` with `actor_sub` (Keyc
 
 ## Repository Structure
 
+### Backend (Go)
+
 ```
 cashflow/
 ├── cmd/
@@ -126,6 +128,16 @@ cashflow/
 ├── Makefile                     # Dev commands
 └── .env.example                 # Configuration template
 ```
+
+### Frontend (Next.js)
+
+- **Root:** `/` redirects to `/home`.
+- **Landing:** `app/(marketing)/` — layout with `MarketingNavbar` and `LandingFooter`; `home/page.tsx` composes Hero, CustomerLogosBar, StatsSection, PlatformBenefitsSection, DashboardPreviewSection, FinalCtaSection.
+- **Marketing components:** `components/marketing/` — `marketing-navbar.tsx`, `hero-section.tsx`, `customer-logos-bar.tsx`, `stats-section.tsx`, `platform-benefits-section.tsx`, `dashboard-preview-section.tsx`, `final-cta-section.tsx`, `landing-footer.tsx` (Kyriba-style Tadfuq.ai branding).
+- **App:** `app/app/` — dashboard, transactions, import, onboarding, settings, etc. Wrapped in `AppShell` with sidebar and tenant context.
+- **Demo:** `app/demo/[slug]/` — client demo route; `DemoContext` and `DemoCompanySync` provide company/industry; sidebar and navbar resolve `/app/*` to `/demo/{slug}/*`.
+- **Features:** `features/transactions/` (hooks, mock-api with `addImportedTransactions`, types), `features/import/` (CSV parsing and `useCSVImport`).
+- **Config:** `frontend/next.config.js` — optional `webpack.cache = false` in dev to avoid cache snapshot errors. `tailwind.config.ts` — landing colors: `neon`, `gold`, `landing-dark`, `landing-darker`, `landing-cream`, `landing-gray`.
 
 ## Quick Start
 
@@ -413,11 +425,53 @@ Services communicate via RabbitMQ events and share tenant identity context via K
 
 ---
 
+## Recent Updates (Frontend & Landing)
+
+### Landing Page (Tadfuq.ai)
+
+- **Kyriba-inspired redesign** at `/home`: sticky dark navbar (#111), hero with neon-green CTAs and dashboard preview, customer logos bar, stats section (cream background), platform benefits (4 glowing cards), interactive dashboard preview, final CTA, and heavy dark footer.
+- **Brand:** Tadfuq.ai with **neon green** `#00FFAA` and **gold** `#FFD700`; dark theme `#0A2540` / `#111111`, light sections `#F8F7F4`. Full Arabic RTL and Cairo font.
+- **Navbar:** Solutions | Platform | Liquidity Performance | Agents | Resources | Pricing | About; language switcher (EN | عربي); Login; **Request Demo** (neon button).
+- **Content:** Agentic AI (Raqib, Mutawaqi, Mustashar), Project Cash Flow, Group Consolidation, GCC compliance & ZATCA VAT.
+
+### Client Demo Mode
+
+- **URL:** `/demo/[slug]` (e.g. `/demo/harbi-contracting`) for a shareable, no-login demo.
+- **DemoContext** drives company name and industry from the URL; **DemoCompanySync** sets mock options so alerts, daily brief, and reports show personalized copy.
+- **Sidebar & navbar:** In demo mode, all `/app/*` links resolve to `/demo/{slug}/*` so navigation stays inside the demo. Logo and “Transactions” link are demo-aware.
+- **Banner:** “DEMO — {Company} — هذه بيانات تجريبية” and CTA **ابدأ الربط الحقيقي الآن** linking to onboarding with pre-filled company/industry.
+
+### Onboarding
+
+- **Pre-fill from demo:** `?from=demo&company=...&industry=...` pre-fills company name and industry.
+- **Authenticated users:** On completion, **createTenant** is called; workspace is linked to the account. If the backend is unavailable, settings are saved locally with a message to sync later.
+- **Next steps:** Link to `/app/integrations-hub` (connect bank or import data). Redirect to dashboard uses `router.replace`.
+
+### CSV Import & Transactions
+
+- **Real CSV parsing** in the browser: `parseCSVToImportRows()` supports date, amount, credit/debit, description columns (EN/AR headers). Rows are shown in the review step; count and copy reflect actual file data.
+- **On confirm:** `addImportedTransactions(tenantId, rows)` persists to `localStorage` and merges into `fetchTransactions` by tenant. React Query cache is invalidated so the Transactions page and dashboard show new data immediately.
+- **Dashboard “Recent transactions”:** Uses `useTransactions(currentTenant?.id)`; shows last 5–7 transactions (including imported) with loading skeleton and relative time. “Transactions →” link uses demo path when in demo mode.
+
+### Daily Brief & Mock Data
+
+- **Daily Brief page** uses `getMockDailyBrief()` for the greeting (company name in demo) and a bullet list of items (balance, expected flows, actions).
+- **Mock data** (alerts, reports, daily brief) uses `getDemoMockOptions()` when in client demo for personalized company name.
+
+### Frontend Config & Tooling
+
+- **next.config.js:** In development, `webpack.cache = false` to avoid “Unable to snapshot resolve dependencies” (PackFileCacheStrategy). Clear `.next` and `node_modules/.cache` if cache issues persist.
+- **Tailwind:** Landing colors added: `neon`, `gold`, `landing-dark`, `landing-darker`, `landing-cream`, `landing-gray`.
+
+---
+
 ## Frontend — تشغيل واستكشاف الأخطاء
 
 - **تشغيل الواجهة:** من مجلد المشروع: `cd frontend && npm run dev` ثم افتح **نفس الرابط** الذي يظهر في الطرفية (مثلاً `http://localhost:3000`). إذا كان المنفذ 3000 مستخدماً ستظهر رسالة خطأ — أوقف العملية التي تستخدمه أو شغّل على منفذ آخر: `npx next dev -p 3001`.
-- **الصفحة الرئيسية:** الرابط `/` يحوّل تلقائياً إلى `/home`. تأكد أنك تفتح نفس منفذ السيرفر (مثلاً 3000 أو 3001).
-- **لوحة التحكم `/app/dashboard`:** تحتاج تسجيل الدخول. إذا كان `NEXT_PUBLIC_DEV_SKIP_AUTH=true` في `frontend/.env` يمكن الدخول بدون تسجيل. أول دخول قد يحوّلك إلى `/app/onboarding` — أكمل الإعداد لرؤية الـ dashboard.
+- **الصفحة الرئيسية:** الرابط `/` يحوّل تلقائياً إلى `/home`. صفحة الهبوط الجديدة (Tadfuq.ai) تعرض الهيرو، إحصائيات، مميزات المنصة، ومعاينة لوحة التحكم.
+- **وضع الديمو:** افتح `/demo/harbi-contracting` أو `/demo/company-name` لتجربة التطبيق بدون تسجيل مع بيانات تجريبية مخصصة للشركة.
+- **لوحة التحكم `/app/dashboard`:** تحتاج تسجيل الدخول (أو استخدم الديمو). إذا كان `NEXT_PUBLIC_DEV_SKIP_AUTH=true` في `frontend/.env` يمكن الدخول بدون تسجيل. أول دخول قد يحوّلك إلى `/app/onboarding` — أكمل الإعداد لرؤية الـ dashboard. قسم «المعاملات الأخيرة» يعرض معاملات حقيقية من الاستيراد + البيانات التجريبية.
+- **استيراد CSV:** من `/app/import` يمكنك رفع ملف CSV بنكي؛ يتم تحليله في المتصفح وعند التأكيد تُضاف المعاملات إلى صفحة المعاملات ولوحة التحكم.
 - **اسأل مستشار (Command Palette):** من أي صفحة داخل التطبيق يمكنك الضغط **Cmd+K** (أو Ctrl+K) أو النقر على زر **اسأل مستشار** الأخضر أسفل يمين الشاشة لفتح قائمة الأوامر: تنقل سريع، إجراءات (استيراد، تقارير، تصدير PDF)، وأوامر الذكاء الاصطناعي (رقيب، متوقع، مستشار). اختيار أمر AI يفتح محادثة مستشار مع السؤال مملوء مسبقاً.
 - إذا استمرت المشكلة: افتح أدوات المطوّر (F12) → تبويب Console وانسخ أي رسالة خطأ باللون الأحمر.
 

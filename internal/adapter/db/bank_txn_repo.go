@@ -119,3 +119,32 @@ func (r *BankTransactionRepo) List(ctx context.Context, filter domain.Transactio
 
 	return txns, total, nil
 }
+
+// SumBalancesByAccountUpTo returns per-account sum of transaction amounts with txn_date <= asOf (inclusive).
+func (r *BankTransactionRepo) SumBalancesByAccountUpTo(ctx context.Context, tenantID uuid.UUID, asOf time.Time) (map[uuid.UUID]float64, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT account_id, COALESCE(SUM(amount), 0)
+		FROM bank_transactions
+		WHERE tenant_id = $1 AND txn_date <= $2
+		GROUP BY account_id`,
+		tenantID, asOf,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("summing balances: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[uuid.UUID]float64)
+	for rows.Next() {
+		var id uuid.UUID
+		var sum float64
+		if err := rows.Scan(&id, &sum); err != nil {
+			return nil, fmt.Errorf("scanning balance row: %w", err)
+		}
+		out[id] = sum
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating balance rows: %w", err)
+	}
+	return out, nil
+}

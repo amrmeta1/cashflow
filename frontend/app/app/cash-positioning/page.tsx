@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+/**
+ * Cash Positioning — بيانات حقيقية من useCashPosition و useTransactions.
+ * نفس التخطيط (لوحة يسرى + تفاصيل حساب + معاملات) مع بيانات الـ API.
+ */
+
+import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import {
-  Sparkles, ChevronDown, Search, RefreshCw, AlertTriangle,
+  Sparkles, ChevronDown, Search, AlertTriangle, Info, RefreshCw, FileImage, FileDown,
   Building2, ArrowDownLeft, ArrowUpRight, Zap, TrendingUp,
-  Download, Shield, Bot, ChevronRight, X, ArrowLeftRight,
+  Download, Shield, Bot, ChevronRight, X, ArrowLeftRight, Settings2,
 } from "lucide-react";
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,10 +20,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/lib/i18n/context";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useTenant } from "@/lib/hooks/use-tenant";
+import { useCashPosition, useCashPositionHistory, getYesterdayAsOf } from "@/lib/hooks/useCashPosition";
+import { useTransactions } from "@/features/transactions/hooks";
+import { exportElementAsPNG, exportElementAsPDF } from "@/lib/export";
+import type { CashPositionExplanation } from "@/features/cash-position/types";
+import { CashPositionExplanationPanel } from "@/components/cash-position/CashPositionExplanationPanel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+
+const CHART_EXPORT_ID = "cash-position-chart-card";
+const HISTORICAL_DAYS = 14;
+
+const DEFAULT_MIN_CASH_THRESHOLD = 50_000;
+
+const ACCOUNT_COLORS = ["bg-indigo-500", "bg-zinc-400", "bg-sky-500", "bg-amber-500", "bg-rose-500", "bg-violet-500", "bg-emerald-500"];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -36,30 +64,18 @@ function fmtFull(n: number, curr: string, sign = true): string {
   return `${s}${formatted} ${curr}`;
 }
 
-// ── Mock data ──────────────────────────────────────────────────────────────────
+// ── Types (UI shape; data from API) ────────────────────────────────────────────
 
 interface ChartPoint {
   dateEn: string;
   dateAr: string;
+  date: string;
   actual: number | null;
   forecast: number | null;
   isToday?: boolean;
 }
 
-const CHART_DATA: ChartPoint[] = [
-  { dateEn: "12 Dec", dateAr: "12 ديس", actual: 19_800_000, forecast: null },
-  { dateEn: "14 Dec", dateAr: "14 ديس", actual: 21_200_000, forecast: null },
-  { dateEn: "17 Dec", dateAr: "17 ديس", actual: 18_900_000, forecast: null },
-  { dateEn: "19 Dec", dateAr: "19 ديس", actual: 16_787_545, forecast: 16_787_545, isToday: true },
-  { dateEn: "22 Dec", dateAr: "22 ديس", actual: null, forecast: 14_200_000 },
-  { dateEn: "26 Dec", dateAr: "26 ديس", actual: null, forecast: 17_500_000 },
-  { dateEn: "2 Jan",  dateAr: "2 يناير", actual: null, forecast: 20_100_000 },
-  { dateEn: "9 Jan",  dateAr: "9 يناير", actual: null, forecast: 18_600_000 },
-  { dateEn: "16 Jan", dateAr: "16 يناير", actual: null, forecast: 22_300_000 },
-  { dateEn: "18 Jan", dateAr: "18 يناير", actual: null, forecast: 24_000_000 },
-];
-
-interface Account {
+interface AccountRow {
   id: string;
   nameEn: string;
   nameAr: string;
@@ -72,18 +88,8 @@ interface Account {
   color: string;
 }
 
-const ACCOUNTS: Account[] = [
-  { id: "all",    nameEn: "All Accounts",         nameAr: "جميع الحسابات",   bank: "",               type: "Summary",  typeAr: "ملخص",        prevBalance: 18_987_719, todayBalance: 16_787_545, color: "bg-indigo-500" },
-  { id: "curr",   nameEn: "Current Accounts",      nameAr: "الحسابات الجارية", bank: "",               type: "Group",    typeAr: "مجموعة",       prevBalance: 16_419_430, todayBalance: 14_219_430, color: "bg-zinc-400" },
-  { id: "barc",   nameEn: "Barclays – Corporate",  nameAr: "باركليز - الشركات", bank: "Barclays",      type: "Current",  typeAr: "جاري",         prevBalance: 5_752_678,  todayBalance: 5_752_678,  color: "bg-sky-500" },
-  { id: "eur",    nameEn: "EUR Account",            nameAr: "حساب اليورو",     bank: "QNB",            type: "FX",       typeAr: "عملة أجنبية",  prevBalance: 4_427_100,  todayBalance: 4_427_100,  color: "bg-amber-500" },
-  { id: "hsbc",   nameEn: "HSBC – Current",         nameAr: "HSBC - جاري",     bank: "HSBC",           type: "Current",  typeAr: "جاري",         prevBalance: -516_401,   todayBalance: -2_924_197, overdraftLimit: -460_000, color: "bg-rose-500" },
-  { id: "cbq",    nameEn: "CBQ – Payroll",          nameAr: "CBQ - رواتب",     bank: "CBQ",            type: "Payroll",  typeAr: "رواتب",        prevBalance: 4_239_264,  todayBalance: 4_239_264,  color: "bg-violet-500" },
-  { id: "masraf", nameEn: "Masraf Al Rayan",        nameAr: "مصرف الريان",     bank: "Masraf Al Rayan",type: "Islamic",  typeAr: "إسلامي",       prevBalance: 2_568_278,  todayBalance: 2_568_278,  color: "bg-emerald-500" },
-];
-
-interface Transaction {
-  id: number;
+interface TxRow {
+  id: string;
   nameEn: string;
   nameAr: string;
   categoryEn: string;
@@ -94,29 +100,61 @@ interface Transaction {
   vatRingfenced?: boolean;
 }
 
-const TRANSACTIONS_BY_DATE: Record<string, Transaction[]> = {
-  "19 Dec": [
-    { id: 1,  nameEn: "UK Supplier",            nameAr: "مورد المملكة المتحدة",  categoryEn: "Suppliers UK",       categoryAr: "موردون",        amount: -1_000_000,   type: "out", accountId: "hsbc" },
-    { id: 2,  nameEn: "Supplier XPDF",           nameAr: "المورد XPDF",           categoryEn: "Suppliers Intl",     categoryAr: "موردون دوليون", amount: -423_792,     type: "out", accountId: "hsbc" },
-    { id: 3,  nameEn: "Supplier XPDF",           nameAr: "المورد XPDF",           categoryEn: "Suppliers Intl",     categoryAr: "موردون دوليون", amount: -372_596,     type: "out", accountId: "hsbc" },
-    { id: 4,  nameEn: "Supplier XPDF",           nameAr: "المورد XPDF",           categoryEn: "Suppliers Intl",     categoryAr: "موردون دوليون", amount: -368_755,     type: "out", accountId: "hsbc" },
-    { id: 5,  nameEn: "Supplier 1",              nameAr: "المورد 1",              categoryEn: "Suppliers UK",       categoryAr: "موردون",        amount: -218_446,     type: "out", accountId: "hsbc" },
-    { id: 6,  nameEn: "Supplier 1",              nameAr: "المورد 1",              categoryEn: "Suppliers UK",       categoryAr: "موردون",        amount: -218_446,     type: "out", accountId: "hsbc" },
-    { id: 7,  nameEn: "Sale Enterprise #2",      nameAr: "مبيعات مشاريع #2",     categoryEn: "Client 3",           categoryAr: "عميل 3",        amount:  171_345,     type: "in",  accountId: "hsbc" },
-    { id: 8,  nameEn: "Sale Enterprise #2",      nameAr: "مبيعات مشاريع #2",     categoryEn: "Client 3",           categoryAr: "عميل 3",        amount:  171_345,     type: "in",  accountId: "hsbc" },
-    { id: 9,  nameEn: "Bank Transfer Intl",      nameAr: "تحويل بنكي دولي",      categoryEn: "Suppliers Intl",     categoryAr: "موردون دوليون", amount: -138_607,     type: "out", accountId: "hsbc" },
-    { id: 10, nameEn: "PNL Phase 3",             nameAr: "PNL المرحلة 3",        categoryEn: "Suppliers UK",       categoryAr: "موردون",        amount: -113_513,     type: "out", accountId: "hsbc" },
-    { id: 11, nameEn: "PNL Phase 3",             nameAr: "PNL المرحلة 3",        categoryEn: "Suppliers UK",       categoryAr: "موردون",        amount: -113_513,     type: "out", accountId: "hsbc" },
-    { id: 12, nameEn: "VAT Q4 – ZATCA",          nameAr: "ضريبة القيمة المضافة Q4", categoryEn: "Tax", categoryAr: "ضرائب",             amount: -2_326_525,   type: "out", accountId: "hsbc", vatRingfenced: true },
-    { id: 13, nameEn: "Client A – Invoice 041",  nameAr: "العميل أ – فاتورة 041",categoryEn: "Sales",              categoryAr: "مبيعات",        amount: 2_868_115,    type: "in",  accountId: "hsbc" },
-  ],
-  "22 Dec": [
-    { id: 14, nameEn: "Payroll – All Staff",     nameAr: "رواتب الموظفين",       categoryEn: "Payroll",            categoryAr: "رواتب",         amount: -89_000,      type: "out", accountId: "cbq" },
-    { id: 15, nameEn: "GOSI Contribution",       nameAr: "التأمينات الاجتماعية", categoryEn: "Government",         categoryAr: "حكومي",         amount: -12_000,      type: "out", accountId: "cbq" },
-    { id: 16, nameEn: "Client B – Project Beta", nameAr: "العميل ب – بيتا",      categoryEn: "Sales",              categoryAr: "مبيعات",        amount: 145_000,      type: "in",  accountId: "barc" },
-    { id: 17, nameEn: "Supplier Materials",      nameAr: "مواد من المورد",       categoryEn: "Suppliers",          categoryAr: "موردون",        amount: -28_000,      type: "out", accountId: "barc" },
-  ],
-};
+// ── Min threshold edit (قابل للتعديل من الواجهة) ───────────────────────────────
+
+function MinThresholdEdit({
+  value,
+  onChange,
+  isAr,
+  currCode,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  isAr: boolean;
+  currCode: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputVal, setInputVal] = useState(String(value));
+  useEffect(() => {
+    if (open) setInputVal(String(value));
+  }, [open, value]);
+  const apply = () => {
+    const n = parseInt(inputVal.replace(/\D/g, ""), 10);
+    if (!Number.isNaN(n) && n >= 0) {
+      onChange(n);
+      setOpen(false);
+    }
+  };
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          aria-label={isAr ? "تغيير الحد الأدنى" : "Edit min threshold"}
+        >
+          <Settings2 className="h-3 w-3" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={isAr ? "start" : "end"} className="p-3 min-w-[200px]">
+        <label className="text-xs font-medium text-foreground block mb-2">
+          {isAr ? "الحد الأدنى للنقد" : "Min cash threshold"} ({currCode})
+        </label>
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && apply()}
+          className="h-8 text-xs mb-2"
+        />
+        <Button size="sm" className="w-full h-7 text-xs" onClick={apply}>
+          {isAr ? "تطبيق" : "Apply"}
+        </Button>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 // ── Custom tooltip ─────────────────────────────────────────────────────────────
 
@@ -163,15 +201,147 @@ export default function CashPositioningPage() {
   const { profile } = useCompany();
   void profile;
   const { fmt, fmtAxis, selected: currCode } = useCurrency();
+  const { currentTenant } = useTenant();
+  const todayQuery = useCashPosition(currentTenant?.id);
+  const yesterdayQuery = useCashPosition(currentTenant?.id, getYesterdayAsOf());
+  const historyQuery = useCashPositionHistory(currentTenant?.id, HISTORICAL_DAYS);
+  const cashData = todayQuery.data;
+  const totalFromApi = todayQuery.totalBalance;
+  const cashLoading = todayQuery.isLoading;
+  const { data: txList = [] } = useTransactions(currentTenant?.id, {});
 
-  // Selected date (clicking chart point or account)
+  const [explainOpen, setExplainOpen] = useState(false);
+  const [minCashThreshold, setMinCashThreshold] = useState(DEFAULT_MIN_CASH_THRESHOLD);
+  const [analysisTab, setAnalysisTab] = useState<"account" | "bank" | "liquidity">("account");
+  const [exporting, setExporting] = useState(false);
+
+  const handleRefresh = () => {
+    todayQuery.refetch();
+    yesterdayQuery.refetch();
+    historyQuery.refetch();
+  };
+
+  const handleExportPNG = async () => {
+    setExporting(true);
+    try {
+      await exportElementAsPNG(CHART_EXPORT_ID, `cash-position-${new Date().toISOString().slice(0, 10)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      await exportElementAsPDF(CHART_EXPORT_ID, `cash-position-${new Date().toISOString().slice(0, 10)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const netChangeVsYesterday = useMemo(() => {
+    if (cashLoading || yesterdayQuery.isLoading || yesterdayQuery.totalBalance == null) return null;
+    const prev = yesterdayQuery.totalBalance;
+    if (prev === 0) return null;
+    const change = (totalFromApi ?? 0) - prev;
+    const pct = (change / prev) * 100;
+    return { absolute: change, pct };
+  }, [cashLoading, yesterdayQuery.isLoading, yesterdayQuery.totalBalance, totalFromApi]);
+
+  const explanation: CashPositionExplanation | null = useMemo(() => {
+    if (!cashData) return null;
+    const composition = (cashData.accounts ?? []).map((a) => ({
+      accountId: a.accountId,
+      name: a.name,
+      currency: a.currency,
+      balance: a.balance,
+    }));
+    const recentTransactions = (txList ?? []).slice(0, 5).map((t) => ({
+      id: t.id,
+      description: t.description || (t.counterparty?.name ?? "—"),
+      amount: t.amount,
+      date: t.txn_date || t.created_at || "",
+    }));
+    return {
+      totalCash: totalFromApi ?? 0,
+      primaryCurrency: cashData.totals?.byCurrency?.[0]?.currency ?? "SAR",
+      composition,
+      recentTransactions,
+    };
+  }, [cashData, txList, totalFromApi]);
+
   const [selectedDate, setSelectedDate] = useState("19 Dec");
-  const [selectedAccountId, setSelectedAccountId] = useState("hsbc");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("all");
   const [txSearch, setTxSearch] = useState("");
   const [aiExpanded, setAiExpanded] = useState(true);
 
-  const selectedAccount = ACCOUNTS.find((a) => a.id === selectedAccountId) ?? ACCOUNTS[4];
-  const rawTransactions = TRANSACTIONS_BY_DATE[selectedDate] ?? TRANSACTIONS_BY_DATE["19 Dec"];
+  // Build account list from API: "all" + one row per account
+  const accountsList = useMemo((): AccountRow[] => {
+    if (!cashData?.accounts?.length) return [];
+    const total = totalFromApi ?? 0;
+    const rows: AccountRow[] = [
+      { id: "all", nameEn: "All Accounts", nameAr: "جميع الحسابات", bank: "", type: "Summary", typeAr: "ملخص", prevBalance: total, todayBalance: total, color: ACCOUNT_COLORS[0] },
+    ];
+    cashData.accounts.forEach((a, i) => {
+      rows.push({
+        id: a.accountId,
+        nameEn: a.name,
+        nameAr: a.name,
+        bank: "",
+        type: "Current",
+        typeAr: "جاري",
+        prevBalance: a.balance,
+        todayBalance: a.balance,
+        color: ACCOUNT_COLORS[(i % (ACCOUNT_COLORS.length - 1)) + 1],
+      });
+    });
+    return rows;
+  }, [cashData?.accounts, totalFromApi]);
+
+  // Group by bank (infer from account name: part before " – " / " - " or first word)
+  const accountsByBank = useMemo(() => {
+    if (!accountsList.length || accountsList[0].id === "all") return [];
+    const map = new Map<string, { bank: string; total: number; count: number }>();
+    accountsList.forEach((acc) => {
+      if (acc.id === "all") return;
+      const bank =
+        acc.nameEn.includes(" – ")
+          ? acc.nameEn.split(" – ")[0].trim()
+          : acc.nameEn.includes(" - ")
+            ? acc.nameEn.split(" - ")[0].trim()
+            : acc.nameEn.split(/\s+/)[0] ?? "Other";
+      const prev = map.get(bank);
+      if (prev) {
+        prev.total += acc.todayBalance;
+        prev.count += 1;
+      } else map.set(bank, { bank, total: acc.todayBalance, count: 1 });
+    });
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [accountsList]);
+
+  // Default selected account when list loads
+  const selectedAccount = useMemo(() => {
+    if (accountsList.length === 0) return null;
+    const found = accountsList.find((a) => a.id === selectedAccountId);
+    return found ?? accountsList[0];
+  }, [accountsList, selectedAccountId]);
+
+  // Transactions from API, mapped to UI shape; filter by selected account
+  const rawTransactions = useMemo((): TxRow[] => {
+    const list = txList.map((t) => ({
+      id: t.id,
+      nameEn: t.description || t.counterparty?.name || "—",
+      nameAr: t.description || t.counterparty?.name || "—",
+      categoryEn: t.category ?? "",
+      categoryAr: t.category ?? "",
+      amount: t.amount,
+      type: (t.amount >= 0 ? "in" : "out") as "in" | "out",
+      accountId: t.account_id ?? "",
+      vatRingfenced: false,
+    }));
+    if (selectedAccountId === "all") return list;
+    return list.filter((t) => t.accountId === selectedAccountId);
+  }, [txList, selectedAccountId]);
 
   const filteredTxns = useMemo(() => {
     const query = txSearch.toLowerCase();
@@ -182,24 +352,54 @@ export default function CashPositioningPage() {
     });
   }, [rawTransactions, txSearch, isAr]);
 
-  const totalInflow  = rawTransactions.filter((t) => t.type === "in").reduce((s, t) => s + t.amount, 0);
+  const totalInflow = rawTransactions.filter((t) => t.type === "in").reduce((s, t) => s + t.amount, 0);
   const totalOutflow = rawTransactions.filter((t) => t.type === "out").reduce((s, t) => s + t.amount, 0);
-  const openingBal   = selectedAccount.prevBalance;
-  const closingBal   = openingBal + totalInflow + totalOutflow;
-  const isOverdraft  = closingBal < 0;
-  const vatAmount    = rawTransactions.filter((t) => t.vatRingfenced).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const openingBal = selectedAccount ? selectedAccount.todayBalance - totalInflow - totalOutflow : 0;
+  const closingBal = selectedAccount ? selectedAccount.todayBalance : 0;
+  const isOverdraft = closingBal < 0;
+  const vatAmount = rawTransactions.filter((t) => t.vatRingfenced).reduce((s, t) => s + Math.abs(t.amount), 0);
 
-  const chartData = CHART_DATA.map((p) => ({
-    ...p,
-    date: isAr ? p.dateAr : p.dateEn,
-  }));
+  // Map history points by YYYY-MM-DD for chart
+  const historyByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    historyQuery.points.forEach((p) => {
+      map[p.date] = p.totalBalance;
+    });
+    return map;
+  }, [historyQuery.points]);
 
-  function handleChartClick(data: any) {
-    if (data?.activePayload?.[0]) {
-      const point = data.activePayload[0].payload as ChartPoint;
-      const dateKey = point.dateEn;
-      if (TRANSACTIONS_BY_DATE[dateKey]) setSelectedDate(dateKey);
+  // Chart: last 30 days; actual from history when backend supports asOf, else only today
+  const chartData = useMemo((): ChartPoint[] => {
+    const today = new Date();
+    const points: ChartPoint[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toISOString().slice(0, 10);
+      const dateEn = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      const dateAr = d.toLocaleDateString("ar-SA", { day: "numeric", month: "short" });
+      const isToday = i === 0;
+      const historicalBalance = historyByDate[dateKey];
+      const actual =
+        historicalBalance != null
+          ? historicalBalance
+          : isToday
+            ? (totalFromApi ?? null)
+            : null;
+      points.push({
+        dateEn,
+        dateAr,
+        date: isAr ? dateAr : dateEn,
+        actual,
+        forecast: null,
+        isToday,
+      });
     }
+    return points;
+  }, [totalFromApi, isAr, historyByDate]);
+
+  function handleChartClick(_data: unknown) {
+    // Optional: could set selectedDate from chart point
   }
 
   return (
@@ -222,10 +422,36 @@ export default function CashPositioningPage() {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-                <Download className="h-3.5 w-3.5" />
-                {isAr ? "تصدير" : "Export"}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={handleRefresh}
+                disabled={todayQuery.isFetching || historyQuery.isFetching}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", (todayQuery.isFetching || historyQuery.isFetching) && "animate-spin")} />
+                {isAr ? "تحديث" : "Refresh"}
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" disabled={exporting}>
+                    <Download className="h-3.5 w-3.5" />
+                    {isAr ? "تصدير الشارت" : "Export chart"}
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={isAr ? "start" : "end"}>
+                  <DropdownMenuLabel>{isAr ? "تحميل الرسم" : "Download chart"}</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={handleExportPNG}>
+                    <FileImage className="h-4 w-4 me-2" />
+                    {isAr ? "PNG" : "Export PNG"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>
+                    <FileDown className="h-4 w-4 me-2" />
+                    {isAr ? "PDF" : "Export PDF"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
                 {isAr ? "جميع الحسابات" : "All Accounts"} <ChevronDown className="h-3 w-3 opacity-60" />
               </Button>
@@ -236,21 +462,53 @@ export default function CashPositioningPage() {
             </div>
           </div>
 
-          {/* Total balance */}
+          {/* Total balance (from API) + Explain this + Net change vs yesterday */}
           <div className="mt-4 flex items-end gap-3 flex-wrap">
             <div>
-              <p className="text-3xl font-bold tabular-nums tracking-tight" dir="ltr" suppressHydrationWarning>
-                {fmt(16_787_545)}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {cashLoading ? (
+                  <Skeleton className="h-9 w-40" />
+                ) : (
+                  <p className="text-3xl font-bold tabular-nums tracking-tight" dir="ltr" suppressHydrationWarning>
+                    {fmt(totalFromApi ?? 0)}
+                  </p>
+                )}
+                {/* Explain this — يظهر دائماً؛ عند الضغط تفتح لوحة تكوين الإجمالي + آخر 5 معاملات */}
+                {!cashLoading && (
+                  <button
+                    type="button"
+                    onClick={() => setExplainOpen(true)}
+                    className="text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded p-1"
+                    aria-label={isAr ? "شرح هذا الرقم" : "Explain this"}
+                  >
+                    <Info className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-medium">
                   <ArrowUpRight className="h-3 w-3" />
                   {isAr ? "إجمالي الأرصدة البنكية" : "Total Bank Balances"}
                 </span>
-                {isOverdraft && (
+                {/* التغيّر عن أمس — useCashPosition(اليوم) و useCashPosition(أمس) */}
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium",
+                    netChangeVsYesterday == null && "text-muted-foreground",
+                    netChangeVsYesterday != null && netChangeVsYesterday.absolute >= 0 && "text-emerald-600 bg-emerald-500/10",
+                    netChangeVsYesterday != null && netChangeVsYesterday.absolute < 0 && "text-rose-500 bg-rose-500/10"
+                  )}
+                  dir="ltr"
+                >
+                  {isAr ? "عن أمس: " : "vs yesterday: "}
+                  {netChangeVsYesterday == null
+                    ? "—"
+                    : `${netChangeVsYesterday.absolute >= 0 ? "+" : ""}${fmt(netChangeVsYesterday.absolute)} (${netChangeVsYesterday.pct >= 0 ? "+" : ""}${netChangeVsYesterday.pct.toFixed(1)}%)`}
+                </span>
+                {selectedAccount && isOverdraft && (
                   <span className="inline-flex items-center gap-1 text-xs text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-md font-medium animate-pulse">
                     <AlertTriangle className="h-3 w-3" />
-                    {isAr ? "HSBC في منطقة السحب المكشوف" : "HSBC in overdraft zone"}
+                    {isAr ? "في منطقة السحب المكشوف" : "In overdraft zone"}
                   </span>
                 )}
               </div>
@@ -268,8 +526,8 @@ export default function CashPositioningPage() {
           </div>
         </div>
 
-        {/* ── Chart card ── */}
-        <Card className="shadow-sm border-border/50 shrink-0">
+        {/* ── Chart card (id for PNG/PDF export) ── */}
+        <Card id={CHART_EXPORT_ID} className="shadow-sm border-border/50 shrink-0">
           <CardContent className="p-4 pb-2">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -318,6 +576,14 @@ export default function CashPositioningPage() {
                 {/* Zero reference */}
                 <ReferenceLine y={0} stroke="hsl(240 3.8% 46.1%)" strokeOpacity={0.3} strokeWidth={1} />
 
+                {/* Min cash threshold (configurable later) */}
+                <ReferenceLine
+                  y={minCashThreshold}
+                  stroke="#f59e0b"
+                  strokeDasharray="4 3"
+                  strokeWidth={1.5}
+                  label={{ value: isAr ? "الحد الأدنى" : "Min threshold", position: "insideTopRight", fontSize: 9, fill: "#f59e0b" }}
+                />
                 {/* Authorized overdraft floor */}
                 <ReferenceLine
                   y={-460_000}
@@ -327,14 +593,16 @@ export default function CashPositioningPage() {
                   label={{ value: "-460k OD", position: "insideTopRight", fontSize: 9, fill: "#ef4444" }}
                 />
 
-                {/* Today marker */}
-                <ReferenceLine
-                  x={isAr ? "19 ديس" : "19 Dec"}
-                  stroke="#3b82f6"
-                  strokeDasharray="4 4"
-                  strokeWidth={1.5}
-                  label={{ value: isAr ? "اليوم" : "Today", position: "insideTopRight", fontSize: 10, fill: "#3b82f6" }}
-                />
+                {/* Today marker (last point in chartData) */}
+                {chartData.length > 0 && (
+                  <ReferenceLine
+                    x={chartData[chartData.length - 1].date}
+                    stroke="#3b82f6"
+                    strokeDasharray="4 4"
+                    strokeWidth={1.5}
+                    label={{ value: isAr ? "اليوم" : "Today", position: "insideTopRight", fontSize: 10, fill: "#3b82f6" }}
+                  />
+                )}
 
                 {/* Area fill under actual */}
                 <Area
@@ -381,18 +649,39 @@ export default function CashPositioningPage() {
                 />
               </ComposedChart>
             </ResponsiveContainer>
+            {/* حد أدنى قابل للتعديل — من الواجهة (لاحقاً من إعدادات الـ tenant) */}
+            <div className="text-[10px] text-muted-foreground mt-2 flex items-center gap-2 flex-wrap">
+              <span className="flex items-center gap-1.5" dir="ltr">
+                <span className="inline-block w-4 h-0.5 border-t-2 border-amber-500 border-dashed" />
+                {isAr ? "الحد الأدنى للنقد:" : "Min cash threshold:"} {fmt(minCashThreshold)} {currCode}
+              </span>
+              <MinThresholdEdit value={minCashThreshold} onChange={setMinCashThreshold} isAr={isAr} currCode={currCode} />
+            </div>
           </CardContent>
         </Card>
 
-        {/* ── Account grid ── */}
+        {/* ── Account grid + تبويبات تحليل (حسب الحساب / البنك / السيولة) ── */}
         <Card className="flex-1 overflow-hidden flex flex-col shadow-sm border-border/50 min-h-[220px]">
-          <div className="flex border-b shrink-0">
-            <div className="px-4 py-2.5 text-xs font-semibold border-b-2 border-primary text-foreground">
-              {isAr ? "ملخص الأرصدة" : "Balance Summary"}
+          <Tabs value={analysisTab} onValueChange={(v) => setAnalysisTab(v as "account" | "bank" | "liquidity")} className="flex-1 flex flex-col min-h-0">
+            <div className="flex border-b shrink-0 flex-wrap items-center gap-2">
+              <div className="px-4 py-2.5 text-xs font-semibold border-b-2 border-primary text-foreground">
+                {isAr ? "ملخص الأرصدة" : "Balance Summary"}
+              </div>
+              <TabsList className="h-8 text-[11px] bg-muted/50">
+                <TabsTrigger value="account" className="px-2.5 py-1 data-[state=active]:bg-background">
+                  {isAr ? "حسب الحساب" : "By account"}
+                </TabsTrigger>
+                <TabsTrigger value="bank" className="px-2.5 py-1 data-[state=active]:bg-background">
+                  {isAr ? "حسب البنك" : "By bank"}
+                </TabsTrigger>
+                <TabsTrigger value="liquidity" className="px-2.5 py-1 data-[state=active]:bg-background">
+                  {isAr ? "حسب السيولة" : "By liquidity"}
+                </TabsTrigger>
+              </TabsList>
             </div>
-          </div>
 
-          <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto">
+              <TabsContent value="account" className="mt-0 h-full">
             <table className="w-full border-collapse text-[12px]">
               <thead>
                 <tr className="border-b bg-muted/30">
@@ -412,64 +701,112 @@ export default function CashPositioningPage() {
                 </tr>
               </thead>
               <tbody>
-                {ACCOUNTS.map((acc) => {
-                  const delta = acc.todayBalance - acc.prevBalance;
-                  const isNegToday = acc.todayBalance < 0;
-                  const isSelected = selectedAccountId === acc.id;
-                  return (
-                    <tr
-                      key={acc.id}
-                      onClick={() => setSelectedAccountId(acc.id)}
-                      className={cn(
-                        "border-b transition-colors cursor-pointer",
-                        isSelected ? "bg-primary/5 hover:bg-primary/8" : "hover:bg-muted/40",
-                        acc.id === "all" && "font-semibold bg-muted/20"
-                      )}
-                    >
-                      <td className="sticky start-0 bg-card p-2.5 z-10">
-                        <div className="flex items-center gap-2">
-                          {acc.id !== "all" && acc.id !== "curr" && (
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${acc.color}`} />
-                          )}
-                          <span className={cn(acc.id === "all" || acc.id === "curr" ? "ps-1" : "")}>
-                            {isAr ? acc.nameAr : acc.nameEn}
+                {cashLoading ? (
+                  <tr><td colSpan={4} className="p-4"><Skeleton className="h-8 w-full" /></td></tr>
+                ) : accountsList.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-6 text-center text-sm text-muted-foreground">
+                      {isAr ? "لا توجد بيانات نقدية. قم بـ " : "No cash data. "}
+                      <Link href="/app/import" className="text-primary underline">{isAr ? "استيراد CSV" : "Import CSV"}</Link>
+                      {isAr ? " أو " : " or "}
+                      <Link href="/app/integrations-hub" className="text-primary underline">{isAr ? "ربط بنك" : "Connect bank"}</Link>.
+                    </td>
+                  </tr>
+                ) : (
+                  accountsList.map((acc) => {
+                    const delta = acc.todayBalance - acc.prevBalance;
+                    const isNegToday = acc.todayBalance < 0;
+                    const isSelected = selectedAccountId === acc.id;
+                    return (
+                      <tr
+                        key={acc.id}
+                        onClick={() => setSelectedAccountId(acc.id)}
+                        className={cn(
+                          "border-b transition-colors cursor-pointer",
+                          isSelected ? "bg-primary/5 hover:bg-primary/8" : "hover:bg-muted/40",
+                          acc.id === "all" && "font-semibold bg-muted/20"
+                        )}
+                      >
+                        <td className="sticky start-0 bg-card p-2.5 z-10">
+                          <div className="flex items-center gap-2">
+                            {acc.id !== "all" && (
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${acc.color}`} />
+                            )}
+                            <span className={cn(acc.id === "all" ? "ps-1" : "")}>
+                              {isAr ? acc.nameAr : acc.nameEn}
+                            </span>
+                            {acc.overdraftLimit != null && (
+                              <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4">OD</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2.5 text-end tabular-nums font-mono" suppressHydrationWarning>
+                          <span className="flex items-center justify-end gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${acc.prevBalance < 0 ? "bg-destructive" : "bg-emerald-500"}`} />
+                            <span className={acc.prevBalance < 0 ? "text-destructive" : ""}>
+                              {fmt(acc.prevBalance)}
+                            </span>
                           </span>
-                          {acc.overdraftLimit && (
-                            <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4">OD</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-2.5 text-end tabular-nums font-mono" suppressHydrationWarning>
-                        <span className="flex items-center justify-end gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${acc.prevBalance < 0 ? "bg-destructive" : "bg-emerald-500"}`} />
-                          <span className={acc.prevBalance < 0 ? "text-destructive" : ""}>
-                            {fmt(acc.prevBalance)}
+                        </td>
+                        <td className={cn(
+                          "p-2.5 text-end tabular-nums font-mono bg-indigo-500/5",
+                          isNegToday ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
+                        )} suppressHydrationWarning>
+                          <span className="flex items-center justify-end gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isNegToday ? "bg-destructive" : "bg-emerald-500"}`} />
+                            {fmt(acc.todayBalance)}
                           </span>
-                        </span>
-                      </td>
-                      <td className={cn(
-                        "p-2.5 text-end tabular-nums font-mono bg-indigo-500/5",
-                        isNegToday ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
-                      )} suppressHydrationWarning>
-                        <span className="flex items-center justify-end gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isNegToday ? "bg-destructive" : "bg-emerald-500"}`} />
-                          {fmt(acc.todayBalance)}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-end tabular-nums">
-                        <span className={cn(
-                          "text-[11px] font-medium",
-                          delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
-                        )}>
-                          {delta >= 0 ? "+" : ""}{fmtAbs(delta)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="p-2.5 text-end tabular-nums">
+                          <span className={cn(
+                            "text-[11px] font-medium",
+                            delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+                          )}>
+                            {delta >= 0 ? "+" : ""}{fmtAbs(delta)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
-          </div>
+              </TabsContent>
+              <TabsContent value="bank" className="mt-0 h-full">
+                <table className="w-full border-collapse text-[12px]">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="p-2.5 text-start font-semibold text-muted-foreground min-w-[140px]">{isAr ? "البنك" : "Bank"}</th>
+                      <th className="p-2.5 text-end font-semibold text-muted-foreground">{isAr ? "الإجمالي" : "Total"}</th>
+                      <th className="p-2.5 text-end font-semibold text-muted-foreground">{isAr ? "عدد الحسابات" : "Accounts"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accountsByBank.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-6 text-center text-sm text-muted-foreground">
+                          {isAr ? "لا توجد بيانات مجمعة. اعرض حسب الحساب." : "No grouped data. View by account."}
+                        </td>
+                      </tr>
+                    ) : (
+                      accountsByBank.map((row) => (
+                        <tr key={row.bank} className="border-b hover:bg-muted/30">
+                          <td className="p-2.5 font-medium">{row.bank}</td>
+                          <td className="p-2.5 text-end tabular-nums font-mono">{fmt(row.total)}</td>
+                          <td className="p-2.5 text-end text-muted-foreground">{row.count}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </TabsContent>
+              <TabsContent value="liquidity" className="mt-0 h-full">
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  {isAr ? "تحليل حسب السيولة سيُربط بحقول من الـ API لاحقاً (مثلاً: سيولة متاحة، مجمدة، خط ائتمان)." : "Analysis by liquidity will use API fields later (e.g. available, locked, credit line)."}
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
         </Card>
       </div>
 
@@ -483,16 +820,16 @@ export default function CashPositioningPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
-                {selectedDate.toUpperCase()} 2025
+                {selectedDate.toUpperCase()} {new Date().getFullYear()}
               </p>
               <p className="text-sm font-semibold mt-0.5">
-                {isAr ? selectedAccount.nameAr : selectedAccount.nameEn}
-                {selectedAccount.bank && (
+                {selectedAccount ? (isAr ? selectedAccount.nameAr : selectedAccount.nameEn) : "—"}
+                {selectedAccount?.bank && (
                   <span className="text-muted-foreground font-normal"> — {selectedAccount.bank}</span>
                 )}
               </p>
             </div>
-            {selectedAccount.overdraftLimit && (
+            {selectedAccount?.overdraftLimit != null && (
               <div className="flex items-center gap-1.5 rounded-lg border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-[11px] font-medium text-destructive shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse shrink-0" />
                 <span dir="ltr">OD Limit: {fmt(Math.abs(selectedAccount.overdraftLimit))}</span>
@@ -669,6 +1006,14 @@ export default function CashPositioningPage() {
 
         </div>
       </div>
+
+      <CashPositionExplanationPanel
+        open={explainOpen}
+        onOpenChange={setExplainOpen}
+        explanation={explanation}
+        loading={cashLoading}
+        isAr={isAr}
+      />
     </div>
   );
 }

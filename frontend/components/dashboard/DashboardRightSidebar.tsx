@@ -1,13 +1,19 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { Sparkles, ArrowRight, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/lib/i18n/context";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { useEntity, entityBalanceInSAR, ENTITIES } from "@/contexts/EntityContext";
+import { useTenant } from "@/lib/hooks/use-tenant";
+import { useCashPosition } from "@/lib/hooks/useCashPosition";
+import { useTransactions } from "@/features/transactions/hooks";
 import { useCommandMenu } from "@/lib/command-store";
+import type { CashPositionExplanation } from "@/features/cash-position/types";
+import { CashPositionExplanationPanel } from "@/components/cash-position/CashPositionExplanationPanel";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_WIDTH = 260;
@@ -29,15 +35,39 @@ const QUICK_LINKS: { href: string; navKey: "projectCashFlow" | "groupConsolidati
 export function DashboardRightSidebar() {
   const { t, locale, dir } = useI18n();
   const { fmt } = useCurrency();
-  const { selectedId } = useEntity();
+  const { currentTenant } = useTenant();
+  const { totalBalance, isLoading, data } = useCashPosition(currentTenant?.id);
+  const { data: txList } = useTransactions(currentTenant?.id);
   const { open: openCommandPalette } = useCommandMenu();
+  const [explainOpen, setExplainOpen] = useState(false);
   const isAr = locale === "ar";
   const d = t.dashboard;
   const nav = t.nav;
 
-  const totalCash = selectedId === "consolidated"
-    ? ENTITIES.reduce((s, e) => s + entityBalanceInSAR(e), 0)
-    : (ENTITIES.find((e) => e.id === selectedId) ? entityBalanceInSAR(ENTITIES.find((e) => e.id === selectedId)!) : 218_340);
+  const totalCash = totalBalance;
+  const hasCashData = (data?.accounts?.length ?? 0) > 0;
+  const primaryCurrency = data?.totals?.byCurrency?.[0]?.currency ?? "SAR";
+  const explanation: CashPositionExplanation | null = useMemo(() => {
+    if (!data) return null;
+    const composition = (data.accounts ?? []).map((a) => ({
+      accountId: a.accountId,
+      name: a.name,
+      currency: a.currency,
+      balance: a.balance,
+    }));
+    const recentTransactions = (txList ?? []).slice(0, 5).map((t) => ({
+      id: t.id,
+      description: t.description || t.counterparty?.name || "—",
+      amount: t.amount,
+      date: t.txn_date || t.created_at,
+    }));
+    return {
+      totalCash: totalBalance,
+      primaryCurrency,
+      composition,
+      recentTransactions,
+    };
+  }, [data, txList, totalBalance, primaryCurrency]);
   const healthMonths = 8.3;
 
   return (
@@ -99,9 +129,32 @@ export function DashboardRightSidebar() {
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
                   {d.cashPosition}
                 </p>
-                <p className="text-lg font-bold tabular-nums tracking-tight text-foreground">
-                  {fmt(totalCash)}
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-7 w-24 mt-0.5" />
+                ) : !hasCashData ? (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {d.noCashData}
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-lg font-bold tabular-nums tracking-tight text-foreground">
+                      {fmt(totalCash)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setExplainOpen(true)}
+                      className="text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded p-0.5"
+                      aria-label={isAr ? "شرح هذا الرقم" : "Explain this"}
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-border/40 pt-2.5">
+                <Link href="/app/cash-positioning" className="text-[10px] text-muted-foreground hover:text-foreground hover:underline">
+                  {d.viewFullCashPosition}
+                </Link>
               </div>
               <div className="border-t border-border/40 pt-2.5">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
@@ -149,6 +202,13 @@ export function DashboardRightSidebar() {
           </nav>
         </div>
       </div>
+      <CashPositionExplanationPanel
+        open={explainOpen}
+        onOpenChange={setExplainOpen}
+        explanation={explanation}
+        loading={isLoading}
+        isAr={isAr}
+      />
     </aside>
   );
 }

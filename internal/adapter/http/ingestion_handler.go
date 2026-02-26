@@ -172,3 +172,27 @@ func (h *IngestionHandler) SyncAccounting(w http.ResponseWriter, r *http.Request
 
 	writeJSON(w, http.StatusAccepted, job)
 }
+
+// GetCashPosition handles GET /tenants/{tenantID}/cash-position?asOf=YYYY-MM-DD
+func (h *IngestionHandler) GetCashPosition(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := uuid.Parse(chi.URLParam(r, "tenantID"))
+	if err != nil {
+		writeErrorResponse(w, fmt.Errorf("%w: invalid tenant ID", domain.ErrValidation))
+		return
+	}
+
+	asOf := time.Now().UTC().Truncate(24 * time.Hour)
+	if v := r.URL.Query().Get("asOf"); v != "" {
+		if t, err := time.Parse("2006-01-02", v); err == nil {
+			asOf = t.UTC()
+		}
+	}
+
+	pos, err := h.uc.GetCashPosition(r.Context(), tenantID, asOf)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, pos)
+}

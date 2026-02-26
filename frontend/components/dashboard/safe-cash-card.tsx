@@ -2,48 +2,17 @@
 
 import { ShieldCheck, Lock, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useTenant } from "@/lib/hooks/use-tenant";
+import { useCashPosition } from "@/lib/hooks/useCashPosition";
 import { cn } from "@/lib/utils";
 
-// ── Financial constants ──────────────────────────────────────────────────────
-
-const TOTAL_BALANCE  = 152_340;
-const VAT_LIABILITY  =  18_500;
-const PAYROLL        =  45_000;
-const BUFFER         =  10_000;
-const SAFE_CASH      = TOTAL_BALANCE - VAT_LIABILITY - PAYROLL - BUFFER; // 78,840
-
-// ── Stacked bar segments ─────────────────────────────────────────────────────
-
-const SEGMENTS = [
-  {
-    key: "safe",
-    amount: SAFE_CASH,
-    color: "bg-emerald-500",
-    dotColor: "bg-emerald-500",
-    locked: false,
-  },
-  {
-    key: "vat",
-    amount: VAT_LIABILITY,
-    color: "bg-amber-500/80",
-    dotColor: "bg-amber-500",
-    locked: true,
-  },
-  {
-    key: "payroll",
-    amount: PAYROLL,
-    color: "bg-blue-500/80",
-    dotColor: "bg-blue-500",
-    locked: true,
-  },
-  {
-    key: "buffer",
-    amount: BUFFER,
-    color: "bg-purple-500/80",
-    dotColor: "bg-purple-500",
-    locked: true,
-  },
-] as const;
+// TODO: VAT_LIABILITY — derive from tagged VAT transactions / ZATCA obligations when available
+const VAT_LIABILITY = 18_500;
+// TODO: PAYROLL — derive from upcoming payables / payroll schedule when available
+const PAYROLL = 45_000;
+// TODO: BUFFER — derive from tenant-level "reserve" or settings when available
+const BUFFER = 10_000;
 
 // ── Label maps ───────────────────────────────────────────────────────────────
 
@@ -67,8 +36,9 @@ function fmt(n: number) {
   return n.toLocaleString("en-US");
 }
 
-function pct(n: number) {
-  return `${((n / TOTAL_BALANCE) * 100).toFixed(1)}%`;
+function pct(n: number, total: number) {
+  if (total <= 0) return "0%";
+  return `${((n / total) * 100).toFixed(1)}%`;
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -82,7 +52,34 @@ interface SafeCashCardProps {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function SafeCashCard({ isAr = false, currency = "SAR", taxAuthority = "ZATCA" }: SafeCashCardProps) {
+  const { currentTenant } = useTenant();
+  const { totalBalance, isLoading } = useCashPosition(currentTenant?.id);
+
+  const TOTAL_BALANCE = totalBalance;
+  const SAFE_CASH = Math.max(0, TOTAL_BALANCE - VAT_LIABILITY - PAYROLL - BUFFER);
+
+  const SEGMENTS = [
+    { key: "safe" as const, amount: SAFE_CASH, color: "bg-emerald-500", dotColor: "bg-emerald-500", locked: false },
+    { key: "vat" as const, amount: VAT_LIABILITY, color: "bg-amber-500/80", dotColor: "bg-amber-500", locked: true },
+    { key: "payroll" as const, amount: PAYROLL, color: "bg-blue-500/80", dotColor: "bg-blue-500", locked: true },
+    { key: "buffer" as const, amount: BUFFER, color: "bg-purple-500/80", dotColor: "bg-purple-500", locked: true },
+  ];
+
   const labels = isAr ? LABELS_AR : LABELS_EN;
+
+  if (isLoading) {
+    return (
+      <Card className="bg-gradient-to-r from-zinc-50 to-white dark:from-zinc-900/50 dark:to-background border-primary/20">
+        <CardContent className="px-5 py-5">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-emerald-500 shrink-0" />
+            <span className="font-semibold tracking-tight text-lg">{isAr ? "رصيد الإنفاق الآمن — AI" : "AI Safe-to-Spend Balance"}</span>
+          </div>
+          <Skeleton className="h-12 w-32 mt-4" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="bg-gradient-to-r from-zinc-50 to-white dark:from-zinc-900/50 dark:to-background border-primary/20">
@@ -122,7 +119,7 @@ export function SafeCashCard({ isAr = false, currency = "SAR", taxAuthority = "Z
             <div
               key={seg.key}
               className={cn("h-full transition-all", seg.color)}
-              style={{ width: pct(seg.amount) }}
+              style={{ width: pct(seg.amount, TOTAL_BALANCE || 1) }}
               title={`${labels[seg.key]}: ${currency} ${fmt(seg.amount)}`}
             />
           ))}
@@ -145,7 +142,7 @@ export function SafeCashCard({ isAr = false, currency = "SAR", taxAuthority = "Z
                 {currency} {fmt(seg.amount)}
               </span>
               <span className="text-[10px] text-muted-foreground ps-3.5 tabular-nums">
-                {pct(seg.amount)}
+                {pct(seg.amount, TOTAL_BALANCE || 1)}
               </span>
             </div>
           ))}

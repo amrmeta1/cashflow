@@ -83,3 +83,65 @@ export function exportToPDF(elementId: string, filename: string): void {
   document.body.classList.remove(PRINT_CLASS);
   document.head.removeChild(style);
 }
+
+/** Export a chart/block element as PNG (uses html2canvas). */
+export async function exportElementAsPNG(
+  elementId: string,
+  filename: string
+): Promise<void> {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    console.warn(`exportElementAsPNG: element #${elementId} not found`);
+    return;
+  }
+  const html2canvas = (await import("html2canvas")).default;
+  const canvas = await html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    logging: false,
+    backgroundColor: null,
+  });
+  const name = filename.endsWith(".png") ? filename : `${filename}.png`;
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
+
+/** Export a chart/block element as PDF (uses html2canvas + jspdf). */
+export async function exportElementAsPDF(
+  elementId: string,
+  filename: string
+): Promise<void> {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    console.warn(`exportElementAsPDF: element #${elementId} not found`);
+    return;
+  }
+  const html2canvas = (await import("html2canvas")).default;
+  const { jsPDF } = await import("jspdf");
+  const canvas = await html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    logging: false,
+    backgroundColor: "#ffffff",
+  });
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const imgRatio = canvas.height / canvas.width;
+  const pageRatio = pageH / pageW;
+  const w = imgRatio > pageRatio ? pageW : pageH / imgRatio;
+  const h = imgRatio > pageRatio ? pageW * imgRatio : pageH;
+  pdf.addImage(imgData, "PNG", 0, 0, w, h);
+  const name = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+  pdf.save(name);
+}
