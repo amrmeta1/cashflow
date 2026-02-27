@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   Info,
   CheckCircle2,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,10 +24,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
-
+import { useTenant } from "@/lib/hooks/use-tenant";
+import { getAnalysisLatest } from "@/lib/api/ingestion-api";
 /* ─── Types ─── */
 
-type NotificationType = "alert" | "agent" | "system";
+type NotificationType = "alert" | "agent" | "system" | "analysis_complete";
 type NotificationSeverity = "critical" | "warning" | "info" | "success";
 
 interface Notification {
@@ -40,6 +42,7 @@ interface Notification {
   read: boolean;
   icon: string;
   severity: NotificationSeverity;
+  href?: string;
 }
 
 /* ─── Mock data ─── */
@@ -175,6 +178,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   download: Download,
   info: Info,
   "check-circle": CheckCircle2,
+  "bar-chart": BarChart3,
 };
 
 function NotificationIcon({ icon, severity }: { icon: string; severity: NotificationSeverity }) {
@@ -210,11 +214,22 @@ function isToday(iso: string): boolean {
   return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
 }
 
+const ANALYSIS_LAST_SEEN_KEY = (tenantId: string) => `analysis_last_seen_${tenantId}`;
+
+function riskLevelToSeverity(riskLevel: string): NotificationSeverity {
+  const lower = riskLevel.toLowerCase();
+  if (lower === "critical" || lower === "high") return "critical";
+  if (lower === "warning" || lower === "medium") return "warning";
+  return "success";
+}
+
 /* ─── Component ─── */
 
 export function NotificationBell() {
   const { locale } = useI18n();
   const isAr = locale === "ar";
+  const { currentTenant } = useTenant();
+  const tenantId = currentTenant?.id;
 
   const [readIds, setReadIds] = useState<Set<string>>(() => {
     const initial = new Set<string>();
@@ -224,18 +239,66 @@ export function NotificationBell() {
     return initial;
   });
 
-  const notifications = useMemo(
-    () => MOCK_NOTIFICATIONS.map((n) => ({ ...n, read: readIds.has(n.id) })),
-    [readIds],
+  const [analysisNotification, setAnalysisNotification] = useState<Notification | null>(null);
+
+  // Poll analysis/latest every 30s; if new analyzed_at, add notification and update lastSeen
+  useEffect(() => {
+    if (!tenantId) return;
+    const poll = async () => {
+      try {
+        const data = await getAnalysisLatest(tenantId);
+        const key = ANALYSIS_LAST_SEEN_KEY(tenantId);
+        const lastSeen = typeof window !== "undefined" ? localStorage.getItem(key) : null;
+        if (!lastSeen || data.analyzed_at > lastSeen) {
+          if (typeof window !== "undefined") localStorage.setItem(key, data.analyzed_at);
+          const severity = riskLevelToSeverity(data.summary.risk_level);
+          const problems = data.summary.total_problems;
+          setAnalysisNotification({
+            id: `analysis-${data.analyzed_at}`,
+            type: "analysis_complete",
+            title_en: "New analysis ready",
+            title_ar: "تحليل جديد جاهز",
+            description_en: problems === 0
+              ? "Your financial analysis is ready"
+              : `We found ${problems} issue${problems !== 1 ? "s" : ""} that need attention`,
+            description_ar: problems === 0
+              ? "تحليلك المالي جاهز"
+              : `وجدنا ${problems} مشاكل تحتاج اهتمامك`,
+            time: data.analyzed_at,
+            read: false,
+            icon: "bar-chart",
+            severity,
+            href: "/app/analysis",
+          });
+        }
+      } catch {
+        // 404 or network: ignore
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 30_000);
+    return () => clearInterval(interval);
+  }, [tenantId]);
+
+  const allNotifications = useMemo(() => {
+    const list = analysisNotification
+      ? [analysisNotification, ...MOCK_NOTIFICATIONS]
+      : MOCK_NOTIFICATIONS;
+    return list.map((n) => ({ ...n, read: readIds.has(n.id) }));
+  }, [analysisNotification, readIds]);
+
+  const unreadCount = allNotifications.filter((n) => !n.read).length;
+
+  const todayItems = allNotifications.filter((n) => isToday(n.time));
+  const earlierItems = allNotifications.filter((n) => !isToday(n.time));
+
+  const allIds = useMemo(
+    () => (analysisNotification ? [analysisNotification.id, ...MOCK_NOTIFICATIONS.map((n) => n.id)] : MOCK_NOTIFICATIONS.map((n) => n.id)),
+    [analysisNotification],
   );
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const todayItems = notifications.filter((n) => isToday(n.time));
-  const earlierItems = notifications.filter((n) => !isToday(n.time));
-
   const markAllRead = () => {
-    setReadIds(new Set(MOCK_NOTIFICATIONS.map((n) => n.id)));
+    setReadIds(new Set(allIds));
   };
 
   const markRead = (id: string) => {
@@ -277,7 +340,7 @@ export function NotificationBell() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        {notifications.length === 0 ? (
+        {allNotifications.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-muted-foreground">
             {isAr ? "لا توجد إشعارات" : "No notifications"}
           </div>
@@ -301,7 +364,7 @@ export function NotificationBell() {
                     )}
                   >
                     <Link
-                      href="/app/alerts"
+                      href={n.href ?? "/app/alerts"}
                       onClick={() => markRead(n.id)}
                       className="flex items-start gap-2.5"
                     >
@@ -328,6 +391,11 @@ export function NotificationBell() {
                         <p className="text-[10px] text-muted-foreground/70 mt-1 tabular-nums">
                           {relativeTime(n.time, isAr)}
                         </p>
+                        {n.type === "analysis_complete" && n.href && (
+                          <p className="text-[11px] font-medium text-primary mt-1.5">
+                            {isAr ? "عرض التحليل" : "View analysis"}
+                          </p>
+                        )}
                       </div>
                     </Link>
                   </DropdownMenuItem>
@@ -354,7 +422,7 @@ export function NotificationBell() {
                     )}
                   >
                     <Link
-                      href="/app/alerts"
+                      href={n.href ?? "/app/alerts"}
                       onClick={() => markRead(n.id)}
                       className="flex items-start gap-2.5"
                     >
@@ -381,6 +449,11 @@ export function NotificationBell() {
                         <p className="text-[10px] text-muted-foreground/70 mt-1 tabular-nums">
                           {relativeTime(n.time, isAr)}
                         </p>
+                        {n.type === "analysis_complete" && n.href && (
+                          <p className="text-[11px] font-medium text-primary mt-1.5">
+                            {isAr ? "عرض التحليل" : "View analysis"}
+                          </p>
+                        )}
                       </div>
                     </Link>
                   </DropdownMenuItem>

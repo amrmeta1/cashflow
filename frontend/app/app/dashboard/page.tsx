@@ -57,6 +57,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { useEntity, ENTITIES } from "@/contexts/EntityContext";
 import { useTenant } from "@/lib/hooks/use-tenant";
 import { useCashPosition } from "@/lib/hooks/useCashPosition";
+import { useAnalysis } from "@/lib/hooks/useAnalysis";
 import { useDemo } from "@/contexts/DemoContext";
 import { useTransactions } from "@/features/transactions/hooks";
 import type { Transaction } from "@/features/transactions/types";
@@ -234,6 +235,7 @@ export default function DashboardPage() {
   const { selectedId } = useEntity();
   const { currentTenant } = useTenant();
   const { data: cashData, totalBalance: cashTotal, isLoading: cashLoading } = useCashPosition(currentTenant?.id);
+  const { data: analysisData, isNotFound: analysisNotFound } = useAnalysis(currentTenant?.id);
   const demo = useDemo();
   const { data: transactions = [], isLoading: transactionsLoading } = useTransactions(currentTenant?.id, {});
   const curr = currCode;
@@ -428,78 +430,137 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ═══ KPI STRIP (horizontal) ═══ */}
-      {sections.kpi && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Total Balance */}
-          <Card className="shadow-sm border-border/50 overflow-hidden bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-950/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalBalance}</p>
-              </div>
-              <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                {fmt(mockKpis.balance)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1.5">{d.across3Accounts}</p>
-              <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                <ArrowUpRight className="h-3 w-3" />+2.1%
-              </div>
-            </CardContent>
-          </Card>
+      {/* ═══ KPI STRIP + Latest financial analysis (same row, always visible) ═══ */}
+      <div className={cn(
+        "grid gap-3",
+        sections.kpi ? "grid-cols-2 lg:grid-cols-4 xl:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+      )}>
+        {sections.kpi && (
+          <>
+            {/* Total Balance */}
+            <Card className="shadow-sm border-border/50 overflow-hidden bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalBalance}</p>
+                </div>
+                <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
+                  {fmt(mockKpis.balance)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1.5">{d.across3Accounts}</p>
+                <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
+                  <ArrowUpRight className="h-3 w-3" />+2.1%
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Revenue */}
-          <Card className="shadow-sm border-border/50 overflow-hidden">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalRevenue}</p>
-              </div>
-              <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                {curr} {mockKpis.revenue.toLocaleString()}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1.5">{d.thisMonth}</p>
-              <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                <ArrowUpRight className="h-3 w-3" />+12%
-              </div>
-            </CardContent>
-          </Card>
+            {/* Revenue */}
+            <Card className="shadow-sm border-border/50 overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalRevenue}</p>
+                </div>
+                <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
+                  {curr} {mockKpis.revenue.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1.5">{d.thisMonth}</p>
+                <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
+                  <ArrowUpRight className="h-3 w-3" />+12%
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Expenses */}
-          <Card className="shadow-sm border-border/50 overflow-hidden">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalExpenses}</p>
-              </div>
-              <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                {curr} {mockKpis.expenses.toLocaleString()}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1.5">{d.topBurn}</p>
-              <div className="text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                <ArrowDownRight className="h-3 w-3" />-3.1%
-              </div>
-            </CardContent>
-          </Card>
+            {/* Expenses */}
+            <Card className="shadow-sm border-border/50 overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalExpenses}</p>
+                </div>
+                <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
+                  {curr} {mockKpis.expenses.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1.5">{d.topBurn}</p>
+                <div className="text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
+                  <ArrowDownRight className="h-3 w-3" />-3.1%
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Runway */}
-          <Card className="shadow-sm border-border/50 overflow-hidden bg-muted/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.runway}</p>
+            {/* Runway */}
+            <Card className="shadow-sm border-border/50 overflow-hidden bg-muted/20">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.runway}</p>
+                </div>
+                <p className="text-xl font-bold tabular-nums tracking-tight leading-none">
+                  {mockKpis.runwayMonths} {d.runwayMonths}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1.5">{d.basedOnBurnRate}</p>
+                <div className="text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
+                  <ArrowUpRight className="h-3 w-3" />{d.stable}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* 📊 آخر تحليل مالي — always visible in same row as KPIs */}
+        <Card className="shadow-sm border-border/50 overflow-hidden border-emerald-500/30 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-950/20 dark:to-transparent">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              {isAr ? "آخر تحليل مالي" : "Latest financial analysis"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 px-4 pb-4">
+            {analysisData ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{isAr ? "الصحة المالية:" : "Financial health:"}</span>
+                  <span className={cn(
+                    "font-semibold tabular-nums flex items-center gap-1",
+                    analysisData.summary.risk_level === "healthy"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : analysisData.summary.risk_level === "warning"
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-red-600 dark:text-red-400"
+                  )}>
+                    {analysisData.summary.health_score}/100
+                    {analysisData.summary.risk_level === "healthy" ? " ✓" : " ⚠"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{isAr ? "الرصيد يكفي:" : "Runway:"}</span>
+                  <span className="font-medium tabular-nums">{analysisData.liquidity.runway_days} {isAr ? "يوم" : "days"}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{isAr ? "المشاكل:" : "Issues:"}</span>
+                  <span className="font-medium tabular-nums">{analysisData.summary.total_problems}</span>
+                </div>
+                <Link href={demo.isDemoMode ? `/demo/${demo.slug}/analysis` : "/app/analysis"}>
+                  <Button variant="outline" size="sm" className="w-full mt-2 gap-1.5 text-xs border-emerald-500/50 hover:bg-emerald-500/10">
+                    {isAr ? "التفاصيل" : "Details"}
+                    <ArrowUpRight className="h-3 w-3" />
+                  </Button>
+                </Link>
               </div>
-              <p className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                {mockKpis.runwayMonths} {d.runwayMonths}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1.5">{d.basedOnBurnRate}</p>
-              <div className="text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                <ArrowUpRight className="h-3 w-3" />{d.stable}
+            ) : (
+              <div className="text-sm text-muted-foreground py-2">
+                <p className="mb-2">{isAr ? "لا يوجد تحليل بعد" : "No analysis yet"}</p>
+                <Link href={demo.isDemoMode ? `/demo/${demo.slug}/analysis` : "/app/analysis"}>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs border-emerald-500/50 hover:bg-emerald-500/10">
+                    {isAr ? "التفاصيل" : "Details"}
+                    <ArrowUpRight className="h-3 w-3" />
+                  </Button>
+                </Link>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ═══ MAIN CHART + 7-DAY FORECAST ═══ */}
       <div className="grid grid-cols-1 gap-5">

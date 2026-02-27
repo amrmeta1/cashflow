@@ -173,3 +173,63 @@ export interface CashPositionResponse {
   accounts: CashPositionAccount[];
   totals: CashPositionTotals;
 }
+
+// ── Analysis (ingestion) ─────────────────────────────────────
+export interface AnalysisSummary {
+  health_score: number;
+  risk_level: string;
+  runway_days: number;
+  total_problems: number;
+}
+
+export interface AnalysisLiquidity {
+  current_balance: number;
+  daily_burn_rate: number;
+  runway_days: number;
+  risk_level: string;
+  projected_zero_date: string;
+}
+
+export interface AnalysisExpenseItem {
+  category: string;
+  amount: number;
+  percentage: number;
+  count: number;
+  is_dominant: boolean;
+}
+
+export interface AnalysisRecurringItem {
+  description: string;
+  amount: number;
+  frequency: string;
+  total_per_year: number;
+}
+
+export interface AnalysisCollectionHealth {
+  total_inflow: number;
+  inflow_count: number;
+  avg_days_between: number;
+  largest_gap_days: number;
+  collection_score: number;
+  is_irregular: boolean;
+}
+
+export interface AnalysisRecommendationItem {
+  priority: number;
+  title: string;
+  description: string;
+  action: string;
+  impact: string;
+}
+
+export interface AnalysisLatestResponse {
+  tenant_id: string;
+  analyzed_at: string;
+  summary: AnalysisSummary;
+  liquidity: AnalysisLiquidity;
+  expense_breakdown: AnalysisExpenseItem[];
+  recurring_payments: AnalysisRecurringItem[];
+  collection_health: AnalysisCollectionHealth;
+  recommendations: AnalysisRecommendationItem[];
+  transaction_count: number;
+}

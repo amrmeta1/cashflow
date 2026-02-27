@@ -19,6 +19,7 @@ import type { ImportRow } from "@/features/import/use-csv-import";
 import { useTenant } from "@/lib/hooks/use-tenant";
 import { useQueryClient } from "@tanstack/react-query";
 import { addImportedTransactions } from "@/features/transactions/mock-api";
+import { runAnalysis } from "@/lib/api/ingestion-api";
 
 // ── Review Table (State 4) ────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ export default function ImportPage() {
   const queryClient = useQueryClient();
   const isAr = locale === "ar";
 
-  const { stage, progress, terminalLine, fileName, rows, onDrop, handleReset } = useCSVImport();
+  const { stage, progress, terminalLine, fileName, rows, selectedFileSize, onDrop, startUploadFromSelection, handleReset } = useCSVImport();
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -126,7 +127,8 @@ export default function ImportPage() {
       description: isAr ? `تم حفظ ${rows.length} معاملة — تظهر في صفحة المعاملات` : `${rows.length} transactions saved — they appear on the Transactions page`,
       variant: "success",
     });
-    router.push("/app/dashboard");
+    runAnalysis(tenantId).catch(() => {});
+    router.push(`/app/analysis?uploaded=true&count=${rows.length}&tenant=${tenantId}`);
   };
 
   return (
@@ -148,6 +150,34 @@ export default function ImportPage() {
                 : "Mustashar AI automatically cleans, categorizes, and maps your transactions in seconds"}
             </p>
           </div>
+
+          {/* ── STATE 0: File selected (preview before upload) ── */}
+          {stage === "file_selected" && (
+            <Card className="p-6">
+              <div className="flex flex-col items-center text-center gap-4">
+                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                <p className="text-sm font-medium">
+                  {isAr ? "الملف جاهز للرفع" : "File ready to upload"}
+                </p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="font-mono">{fileName}</span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {selectedFileSize >= 1024
+                      ? `${(selectedFileSize / 1024).toFixed(1)} KB`
+                      : `${selectedFileSize} B`}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {isAr ? "سيتم التحليل تلقائياً بعد الرفع" : "Analysis will run automatically after upload"}
+                </p>
+                <Button className="gap-1.5" onClick={startUploadFromSelection}>
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  {isAr ? "رفع وتحليل فوراً 🚀" : "Upload & analyze now 🚀"}
+                </Button>
+              </div>
+            </Card>
+          )}
 
           {/* ── STATE 1: Dropzone ── */}
           {stage === "idle" && (
@@ -273,7 +303,7 @@ export default function ImportPage() {
             </Button>
             <Button size="sm" className="gap-1.5" onClick={handleConfirm}>
               <CheckCircle2 className="h-3.5 w-3.5" />
-              {isAr ? `تأكيد واستيراد ${rows.length} معاملة` : `Confirm & Import ${rows.length} Transactions`}
+              {isAr ? "رفع وتحليل فوراً 🚀" : "Upload & analyze now 🚀"}
             </Button>
           </div>
         </div>

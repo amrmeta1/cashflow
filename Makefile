@@ -95,3 +95,6 @@ keycloak-token: ## Get a Keycloak access token for admin@demo.com (dev only)
 		-d "client_secret=cashflow-api-secret" \
 		-d "username=admin@demo.com" \
 		-d "password=admin123" | jq -r '.access_token'
+
+test-analysis: ## Test analysis API (token + create tenant + run analysis + get latest). Run tenant + ingestion locally first.
+	@./scripts/test-analysis.sh

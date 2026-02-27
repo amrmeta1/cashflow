@@ -425,6 +425,34 @@ Services communicate via RabbitMQ events and share tenant identity context via K
 
 ---
 
+## تشغيل المشروع خطوة خطوة
+
+من جذر المشروع نفّذ بالترتيب:
+
+| الخطوة | الأمر | ماذا يفعل |
+|--------|--------|-----------|
+| **1** | `docker compose -f deploy/docker/docker-compose.yml up -d` | يشغّل الحاويات: Postgres (5433)، Keycloak (8180)، NATS، RabbitMQ، tenant-service (8080)، ingestion-service (8081). إذا ظهر خطأ `port 8080` أو `8081 already in use` أوقف أي عملية محلية تستخدمها. |
+| **2** | `make migrate` | يطبّق migrations على قاعدة البيانات (مرة واحدة بعد أول `up`). |
+| **3** | `DB_PORT=5433 make run` | يشغّل **tenant-service** محلياً على :8080 (يحتاج المنفذ 8080 حراً). |
+| **4** | `DB_PORT=5433 make run-ingestion` | يشغّل **ingestion-service** محلياً على :8081 (في طرفية ثانية؛ يحتاج 8081 حراً). |
+| **5** | `cd frontend && npm run dev` | يشغّل الواجهة على :3000 (في طرفية ثالثة). |
+
+**بديل: تشغيل كل شيء من Docker (بدون تشغيل الخدمات محلياً)**  
+استخدم الخطوة 1 فقط — الـ compose يشغّل tenant و ingestion داخل Docker. لا تحتاج الخطوتين 3 و 4.
+
+**بديل: تشغيل البنية التحتية فقط ثم الخدمات محلياً**  
+لتجنب تعارض المنافذ 8080 و 8081:
+```bash
+docker compose -f deploy/docker/docker-compose.yml up -d postgres keycloak nats rabbitmq
+make migrate
+# ثم في طرفيتين منفصلتين:
+DB_PORT=5433 make run
+DB_PORT=5433 make run-ingestion
+```
+ثم في طرفية ثالثة: `cd frontend && npm run dev`.
+
+---
+
 ## Recent Updates (Frontend & Landing)
 
 ### Landing Page (Tadfuq.ai)

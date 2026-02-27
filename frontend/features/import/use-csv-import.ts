@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type ImportStage = "idle" | "uploading" | "analyzing" | "review";
+export type ImportStage = "idle" | "file_selected" | "uploading" | "analyzing" | "review";
 
 export interface ImportRow {
   id: string;
@@ -178,6 +178,7 @@ export function useCSVImport() {
   const [terminalLine, setTerminal]   = useState("");
   const [fileName, setFileName]       = useState("");
   const [rows, setRows]               = useState<ImportRow[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const terminalIdx = useRef(0);
   const uploadTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -252,10 +253,22 @@ export function useCSVImport() {
     }, 100);
   }, [startAnalyzing]);
 
-  // ── onDrop handler ────────────────────────────────────────────────────────
+  // ── onDrop: go to file_selected (preview) instead of uploading immediately ──
   const onDrop = useCallback((accepted: File[]) => {
-    if (accepted[0]) startUpload(accepted[0]);
-  }, [startUpload]);
+    if (accepted[0]) {
+      setSelectedFile(accepted[0]);
+      setFileName(accepted[0].name);
+      setStage("file_selected");
+    }
+  }, []);
+
+  // ── Start upload from the selected file (after user clicks "Upload & analyze") ──
+  const startUploadFromSelection = useCallback(() => {
+    if (selectedFile) {
+      startUpload(selectedFile);
+      setSelectedFile(null);
+    }
+  }, [selectedFile, startUpload]);
 
   // ── Confirm & Import ──────────────────────────────────────────────────────
   const handleConfirm = useCallback(() => {
@@ -270,8 +283,11 @@ export function useCSVImport() {
     setTerminal("");
     setFileName("");
     setRows([]);
+    setSelectedFile(null);
     terminalIdx.current = 0;
   }, []);
+
+  const selectedFileSize = selectedFile != null ? selectedFile.size : 0;
 
   return {
     stage,
@@ -279,7 +295,10 @@ export function useCSVImport() {
     terminalLine,
     fileName,
     rows,
+    selectedFile,
+    selectedFileSize,
     onDrop,
+    startUploadFromSelection,
     handleConfirm,
     handleReset,
   };

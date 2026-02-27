@@ -10,10 +10,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
   Legend,
 } from "recharts";
 import { motion } from "framer-motion";
-import { Boxes, Sparkles } from "lucide-react";
+import { Boxes, Sparkles, Lightbulb } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,90 @@ import { useScenarioPlanner } from "@/lib/hooks/useScenarioPlanner";
 import { useForecastSimulation } from "@/features/forecast/use-forecast-simulation";
 import { ForecastChart } from "@/features/forecast/forecast-chart";
 import { ScenarioSandbox } from "@/features/forecast/scenario-sandbox";
-import type { ScenarioAssumptions, ScenarioDerived } from "@/lib/hooks/useScenarioPlanner";
+import type { ScenarioAssumptions, ScenarioDerived, ScenarioPreset } from "@/lib/hooks/useScenarioPlanner";
+
+// ── Scenario vs Base diff helper (for KPI cards) ─────────────────────────────
+
+export type TrendType = "better" | "worse" | "same";
+
+export function getScenarioVsBaseDiff(
+  baseValue: number,
+  scenarioValue: number,
+  higherIsBetter: boolean
+): { diff: number; diffPercent: number; trend: TrendType } {
+  const diff = scenarioValue - baseValue;
+  const diffPercent =
+    baseValue !== 0 ? (diff / Math.abs(baseValue)) * 100 : 0;
+  let trend: TrendType = "same";
+  if (diff !== 0) {
+    trend = higherIsBetter ? (diff > 0 ? "better" : "worse") : (diff < 0 ? "better" : "worse");
+  }
+  return { diff, diffPercent, trend };
+}
+
+// Runway: null = infinite (profitable). For comparison use a large number.
+const RUNWAY_INFINITE = 999;
+
+export function getScenarioVsBaseDiffRunway(
+  baseRunwayMonths: number | null,
+  scenarioRunwayMonths: number | null
+): { trend: TrendType; labelKey: "same" | "better" | "worse" } {
+  const base = baseRunwayMonths ?? RUNWAY_INFINITE;
+  const scenario = scenarioRunwayMonths ?? RUNWAY_INFINITE;
+  if (base === scenario) return { trend: "same", labelKey: "same" };
+  return scenario > base
+    ? { trend: "better", labelKey: "better" }
+    : { trend: "worse", labelKey: "worse" };
+}
+
+// ── Explain this scenario (deterministic template, no LLM) ─────────────────────
+
+function getActivePresetKey(
+  assumptions: ScenarioAssumptions,
+  presets: ScenarioPreset[]
+): string | null {
+  const match = presets.find(
+    (p) =>
+      p.assumptions.revenueGrowthPct === assumptions.revenueGrowthPct &&
+      p.assumptions.costReductionPct === assumptions.costReductionPct &&
+      p.assumptions.collectionSpeedDays === assumptions.collectionSpeedDays
+  );
+  return match ? match.key : null;
+}
+
+function getPresetLabel(key: string, isAr: boolean): string {
+  const labels: Record<string, { ar: string; en: string }> = {
+    worst: { ar: "الحالة الأسوأ", en: "Worst Case" },
+    base: { ar: "الحالة الأساسية", en: "Base Case" },
+    best: { ar: "الحالة المثلى", en: "Best Case" },
+    lose_client: { ar: "خسارة أكبر عميل", en: "Lose Biggest Client" },
+    delayed_collections: { ar: "تأخر التحصيل", en: "Delayed Collections" },
+    aggressive_growth: { ar: "نمو عدواني", en: "Aggressive Growth" },
+    emergency_cost_cut: { ar: "تقشف طارئ", en: "Emergency Cost Cut" },
+  };
+  return isAr ? labels[key]?.ar ?? key : labels[key]?.en ?? key;
+}
+
+function getScenarioExplanation(
+  assumptions: ScenarioAssumptions,
+  derived: ScenarioDerived,
+  presets: ScenarioPreset[],
+  fmt: (n: number) => string,
+  isAr: boolean
+): string {
+  const key = getActivePresetKey(assumptions, presets);
+  const scenarioName = key ? getPresetLabel(key, isAr) : (isAr ? "السيناريو المخصص" : "Custom scenario");
+  const { netMonthlyFlow, projectedRunwayMonths } = derived;
+  const runwayText =
+    projectedRunwayMonths === null
+      ? (isAr ? "∞ مربح" : "∞ Profitable")
+      : (isAr ? `${projectedRunwayMonths.toFixed(1)} شهر` : `${projectedRunwayMonths.toFixed(1)} months`);
+
+  if (isAr) {
+    return `في هذا السيناريو (${scenarioName}):\n• نمو الإيرادات = ${assumptions.revenueGrowthPct > 0 ? "+" : ""}${assumptions.revenueGrowthPct}٪.\n• تخفيض التكاليف = ${assumptions.costReductionPct}٪.\n• فترة التحصيل = ${assumptions.collectionSpeedDays} يومًا.\nينتج عن ذلك صافي تدفق شهري قدره ${fmt(netMonthlyFlow)} ورصيد يكفي لمدة ${runwayText}.`;
+  }
+  return `In this scenario (${scenarioName}):\n• Revenue growth = ${assumptions.revenueGrowthPct > 0 ? "+" : ""}${assumptions.revenueGrowthPct}%.\n• Cost reduction = ${assumptions.costReductionPct}%.\n• Collection period = ${assumptions.collectionSpeedDays} days.\nResult: net monthly flow ${fmt(netMonthlyFlow)}, runway ${runwayText}.`;
+}
 
 // ── Quick scenario definitions (Base 0%, Optimistic +20%, Pessimistic -30%) ───
 
@@ -109,6 +193,15 @@ function ChartTooltipContent({ active, payload, label, isAr }: any) {
   );
 }
 
+// ── Implementation summary (Scenario Planner enhancements) ───────────────────
+// • Components touched: this file only (scenario-planner/page.tsx).
+// • Cash timeline: existing chart card retitled to "تطور الرصيد النقدي في هذا السيناريو";
+//   ReferenceArea added to shade below zero (negative cash) in light red.
+// • KPI cards: getScenarioVsBaseDiff / getScenarioVsBaseDiffRunway used to show
+//   scenario vs base value and diff badge (better/worse/same) on all four cards.
+// • Explain box: "ماذا يعني هذا السيناريو؟" card to the right of the chart (desktop),
+//   body from getScenarioExplanation(assumptions, derived, presets, fmt, isAr).
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ScenarioPlannerPage() {
@@ -141,10 +234,17 @@ export default function ScenarioPlannerPage() {
   };
 
   const baseNetFlow = baselineRevenue - baselineBurn;
+  const baseRunwayMonths: number | null =
+    baseNetFlow >= 0 ? null : currentCashBalance / Math.abs(baseNetFlow);
   const chartDataWithBase = chartData.map((d, i) => ({
     ...d,
     baseBalance: Math.round(currentCashBalance + baseNetFlow * (i + 1)),
   }));
+  const minBalanceInChart = Math.min(
+    ...chartDataWithBase.flatMap((d) => [d.baseBalance, d.cashBalance]),
+    0
+  );
+  const negativeAreaY2 = minBalanceInChart < 0 ? minBalanceInChart : undefined;
 
   const collectionDelayPct = Math.round(((assumptions.collectionSpeedDays - 15) / 45) * 100);
 
@@ -363,6 +463,9 @@ export default function ScenarioPlannerPage() {
           <div className="grid grid-cols-2 gap-4 content-start">
 
             {/* KPI 1 — Adjusted Revenue */}
+            {(() => {
+              const { diff, diffPercent, trend } = getScenarioVsBaseDiff(baselineRevenue, adjustedRevenue, true);
+              return (
             <Card className={cn(
               "border-s-4 transition-colors",
               adjustedRevenue > baselineRevenue ? "border-s-emerald-500" : adjustedRevenue < baselineRevenue ? "border-s-destructive" : "border-s-border"
@@ -384,10 +487,25 @@ export default function ScenarioPlannerPage() {
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {isAr ? "الأساس:" : "Baseline:"} {fmt(baselineRevenue)}
                 </p>
+                {trend !== "same" && (
+                  <p className={cn(
+                    "text-[11px] font-medium mt-1 tabular-nums",
+                    trend === "better" ? "text-emerald-600 dark:text-emerald-400" : trend === "worse" ? "text-destructive" : "text-muted-foreground"
+                  )}>
+                    {trend === "better"
+                      ? isAr ? `أفضل بـ ${fmt(diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)` : `Better by ${fmt(diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)`
+                      : isAr ? `أسوأ بـ ${fmt(-diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)` : `Worse by ${fmt(-diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)`}
+                  </p>
+                )}
               </CardContent>
             </Card>
+              );
+            })()}
 
-            {/* KPI 2 — Adjusted Burn */}
+            {/* KPI 2 — Adjusted Burn (lower is better) */}
+            {(() => {
+              const { diff, diffPercent, trend } = getScenarioVsBaseDiff(baselineBurn, adjustedBurn, false);
+              return (
             <Card className={cn(
               "border-s-4 transition-colors",
               adjustedBurn < baselineBurn ? "border-s-emerald-500" : adjustedBurn > baselineBurn ? "border-s-destructive" : "border-s-border"
@@ -409,10 +527,25 @@ export default function ScenarioPlannerPage() {
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {isAr ? "الأساس:" : "Baseline:"} {fmt(baselineBurn)}
                 </p>
+                {trend !== "same" && (
+                  <p className={cn(
+                    "text-[11px] font-medium mt-1 tabular-nums",
+                    trend === "better" ? "text-emerald-600 dark:text-emerald-400" : trend === "worse" ? "text-destructive" : "text-muted-foreground"
+                  )}>
+                    {trend === "better"
+                      ? isAr ? `أفضل بـ ${fmt(-diff)} (${diffPercent <= 0 ? "" : "+"}${diffPercent.toFixed(0)}%)` : `Better by ${fmt(-diff)} (${diffPercent <= 0 ? "" : "+"}${diffPercent.toFixed(0)}%)`
+                      : isAr ? `أسوأ بـ ${fmt(diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)` : `Worse by ${fmt(diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)`}
+                  </p>
+                )}
               </CardContent>
             </Card>
+              );
+            })()}
 
             {/* KPI 3 — Net Monthly Flow */}
+            {(() => {
+              const { diff, diffPercent, trend } = getScenarioVsBaseDiff(baseNetFlow, netMonthlyFlow, true);
+              return (
             <Card className={cn(
               "border-s-4 transition-colors",
               isPositiveFlow ? "border-s-emerald-500" : "border-s-destructive"
@@ -430,12 +563,27 @@ export default function ScenarioPlannerPage() {
                   {netMonthlyFlow >= 0 ? "+" : ""}{fmt(netMonthlyFlow)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {isAr ? "شهرياً" : "per month"}
+                  {isAr ? "الأساس:" : "Baseline:"} {fmt(baseNetFlow)}
                 </p>
+                {trend !== "same" && (
+                  <p className={cn(
+                    "text-[11px] font-medium mt-1 tabular-nums",
+                    trend === "better" ? "text-emerald-600 dark:text-emerald-400" : trend === "worse" ? "text-destructive" : "text-muted-foreground"
+                  )}>
+                    {trend === "better"
+                      ? isAr ? `أفضل بـ ${fmt(diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)` : `Better by ${fmt(diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)`
+                      : isAr ? `أسوأ بـ ${fmt(-diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)` : `Worse by ${fmt(-diff)} (${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(0)}%)`}
+                  </p>
+                )}
               </CardContent>
             </Card>
+              );
+            })()}
 
             {/* KPI 4 — Projected Runway */}
+            {(() => {
+              const { trend, labelKey } = getScenarioVsBaseDiffRunway(baseRunwayMonths, projectedRunwayMonths);
+              return (
             <Card className={cn(
               "border-s-4 transition-colors",
               isProfitable || (projectedRunwayMonths ?? 0) > 12
@@ -456,25 +604,37 @@ export default function ScenarioPlannerPage() {
                     : `${(projectedRunwayMonths ?? 0).toFixed(1)} ${isAr ? "شهر" : "months"}`}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {isAr ? "بناءً على الافتراضات الحالية" : "Based on current assumptions"}
+                  {isAr ? "الأساس:" : "Baseline:"} {baseRunwayMonths == null ? (isAr ? "∞ مربح" : "∞ Profitable") : `${baseRunwayMonths.toFixed(1)} ${isAr ? "شهر" : "months"}`}
                 </p>
+                {labelKey !== "same" && (
+                  <p className={cn(
+                    "text-[11px] font-medium mt-1",
+                    trend === "better" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                  )}>
+                    {labelKey === "better" ? (isAr ? "أفضل من الأساس" : "Better than base") : (isAr ? "أسوأ من الأساس" : "Worse than base")}
+                  </p>
+                )}
               </CardContent>
             </Card>
+              );
+            })()}
 
           </div>
         </div>
 
-        {/* ── Cash Flow Impact Chart (Base vs Scenario, Live Preview) ── */}
+        {/* ── Cash timeline (Base vs Scenario) + Explain box ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
+          className="min-w-0"
         >
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-sm font-semibold">
-                  {isAr ? "تأثير التدفق النقدي — توقعات ١٢ شهراً" : "Cash Flow Impact — 12‑Month Projection"}
+                  {isAr ? "تطور الرصيد النقدي في هذا السيناريو" : "Cash balance in this scenario"}
                 </CardTitle>
                 <Badge variant="secondary" className="gap-1 font-normal text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
                   <span className="relative flex h-1.5 w-1.5">
@@ -536,6 +696,14 @@ export default function ScenarioPlannerPage() {
                       formatter={(value) => (value === "baseBalance" ? (isAr ? "التوقّع الأساسي" : "Base Forecast") : (isAr ? "تأثير السيناريو" : "Scenario Impact"))}
                     />
 
+                    {negativeAreaY2 !== undefined && (
+                      <ReferenceArea
+                        y1={0}
+                        y2={negativeAreaY2}
+                        fill="rgba(239,68,68,0.15)"
+                        strokeOpacity={0}
+                      />
+                    )}
                     <ReferenceLine
                       y={0}
                       stroke="hsl(0 72% 51%)"
@@ -581,6 +749,22 @@ export default function ScenarioPlannerPage() {
             </CardContent>
           </Card>
         </motion.div>
+
+          {/* ── Explain this scenario (deterministic summary) ── */}
+          <Card className="shrink-0 border-muted/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                {isAr ? "ماذا يعني هذا السيناريو؟" : "What does this scenario mean?"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-line">
+                {getScenarioExplanation(assumptions, derived, presets, fmt, isAr)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* ── Mustashar recommendation card ── */}
         <motion.div

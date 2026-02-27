@@ -697,11 +697,11 @@ export default function GroupConsolidationPage() {
                           return isAr ? labels[value]?.ar ?? value : labels[value]?.en ?? value;
                         }}
                       />
-                      <Bar dataKey="hq" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} isAnimationActive animationDuration={300} activeBar={{ stroke: "#10b981", strokeWidth: 1.5 }} />
-                      <Bar dataKey="construction" stackId="a" fill="#3b82f6" isAnimationActive animationDuration={300} activeBar={{ stroke: "#3b82f6", strokeWidth: 1.5 }} />
-                      <Bar dataKey="trading" stackId="a" fill="#6366f1" isAnimationActive animationDuration={300} activeBar={{ stroke: "#6366f1", strokeWidth: 1.5 }} />
-                      <Bar dataKey="tech" stackId="a" fill="#f59e0b" isAnimationActive animationDuration={300} activeBar={{ stroke: "#f59e0b", strokeWidth: 1.5 }} />
-                      <Bar dataKey="properties" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={300} activeBar={{ stroke: "#ef4444", strokeWidth: 1.5, radius: [4, 4, 0, 0] }} />
+                      <Bar dataKey="hq" stackId="a" fill="#10b981" isAnimationActive animationDuration={300} />
+                      <Bar dataKey="construction" stackId="a" fill="#3b82f6" isAnimationActive animationDuration={300} />
+                      <Bar dataKey="trading" stackId="a" fill="#6366f1" isAnimationActive animationDuration={300} />
+                      <Bar dataKey="tech" stackId="a" fill="#f59e0b" isAnimationActive animationDuration={300} />
+                      <Bar dataKey="properties" stackId="a" fill="#ef4444" radius={4} isAnimationActive animationDuration={300} />
                     </BarChart>
                   </ResponsiveContainer>
                 </motion.div>

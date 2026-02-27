@@ -620,11 +620,12 @@ export default function CashPositioningPage() {
                   stroke="rgb(99,102,241)"
                   strokeWidth={2.5}
                   dot={(props: any) => {
+                    if (!props?.payload) return <circle r={0} />;
                     const { cx, cy, payload } = props;
                     const isSelected = (isAr ? payload.dateAr : payload.dateEn) === selectedDate || payload.dateEn === selectedDate;
                     return (
                       <circle
-                        key={`dot-actual-${payload.dateEn}`}
+                        key={`dot-actual-${payload?.dateEn ?? cx}`}
                         cx={cx} cy={cy} r={isSelected ? 6 : 4}
                         fill={isSelected ? "rgb(99,102,241)" : "var(--background)"}
                         stroke="rgb(99,102,241)"

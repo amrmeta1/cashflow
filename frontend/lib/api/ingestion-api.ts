@@ -7,6 +7,7 @@ import type {
   CSVImportResult,
   CashPositionResponse,
   TransactionFilters,
+  AnalysisLatestResponse,
 } from "./types";
 
 export async function importBankCSV(
@@ -47,4 +48,14 @@ export async function getCashPosition(
   const params: Record<string, string> = {};
   if (asOf) params.asOf = asOf;
   return ingestionApi.get(`/tenants/${tenantId}/cash-position`, params);
+}
+
+export async function getAnalysisLatest(
+  tenantId: string
+): Promise<AnalysisLatestResponse> {
+  return ingestionApi.get(`/tenants/${tenantId}/analysis/latest`);
+}
+
+export async function runAnalysis(tenantId: string): Promise<void> {
+  await ingestionApi.post(`/tenants/${tenantId}/analysis/run`);
 }

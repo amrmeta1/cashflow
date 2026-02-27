@@ -76,6 +76,7 @@ const OPERATIONS: NavItem[] = [
 const COMPLIANCE: NavItem[] = [
   { navKey: "transactions", icon: ArrowLeftRight, href: "/app/transactions" },
   { navKey: "import", icon: Upload, href: "/app/import" },
+  { navKey: "financialAnalysis", icon: BarChart3, href: "/app/analysis" },
   { navKey: "alerts", icon: Bell, href: "/app/alerts" },
   { navKey: "reports", icon: FileText, href: "/app/reports" },
   { navKey: "budget", icon: Target, href: "/app/analytics/budget" },
