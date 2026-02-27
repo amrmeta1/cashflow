@@ -10,7 +10,7 @@ import Link from "next/link";
 import {
   Sparkles, ChevronDown, Search, AlertTriangle, Info, RefreshCw, FileImage, FileDown,
   Building2, ArrowDownLeft, ArrowUpRight, Zap, TrendingUp,
-  Download, Shield, Bot, ChevronRight, X, ArrowLeftRight, Settings2,
+  Download, Shield, Bot, ChevronRight, X, ArrowLeftRight, Settings2, Lightbulb,
 } from "lucide-react";
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -62,6 +62,50 @@ function fmtFull(n: number, curr: string, sign = true): string {
   if (!sign) return `${formatted} ${curr}`;
   const s = n < 0 ? "-" : "+";
   return `${s}${formatted} ${curr}`;
+}
+
+// ── Daily Insight (rule-based from chart + totals + threshold) ──────────────────
+
+function getDailyInsight(
+  chartPoints: { actual: number | null }[],
+  totalCash: number,
+  minThreshold: number,
+  accounts: { balance: number }[],
+  fmt: (n: number) => string,
+  currCode: string,
+  isAr: boolean
+): string {
+  const withActual = chartPoints.filter((p) => p.actual != null) as { actual: number }[];
+  const daysBelow = withActual.filter((p) => p.actual < minThreshold).length;
+  const avgBalance =
+    withActual.length > 0
+      ? withActual.reduce((s, p) => s + p.actual, 0) / withActual.length
+      : totalCash;
+  const pctVsAvg =
+    avgBalance !== 0 ? ((totalCash - avgBalance) / Math.abs(avgBalance)) * 100 : 0;
+  const maxAccountBalance =
+    accounts.length > 0 ? Math.max(...accounts.map((a) => a.balance)) : 0;
+  const concentrationPct = totalCash !== 0 ? (maxAccountBalance / totalCash) * 100 : 0;
+
+  if (daysBelow > 0) {
+    return isAr
+      ? `انخفض الرصيد النقدي تحت الحد الأدنى (${fmt(minThreshold)} ${currCode}) في ${daysBelow} يوم خلال الفترة — راقب الوضع عن كثب.`
+      : `Cash dipped below the minimum threshold (${fmt(minThreshold)} ${currCode}) on ${daysBelow} days in this period – monitor closely.`;
+  }
+  if (concentrationPct >= 65 && accounts.length > 1) {
+    return isAr
+      ? `أكثر من ${Math.round(concentrationPct)}% من النقد في حساب واحد؛ يُنصح بتنويع التعرض البنكي.`
+      : `More than ${Math.round(concentrationPct)}% of your cash is in one account; consider diversifying bank exposure.`;
+  }
+  if (withActual.length > 0 && Math.abs(pctVsAvg) >= 5) {
+    const dir = pctVsAvg > 0 ? (isAr ? "أعلى" : "higher") : (isAr ? "أقل" : "lower");
+    return isAr
+      ? `الرصيد النقدي الحالي ${dir} من متوسط آخر ${withActual.length} يوم بنسبة ${Math.abs(pctVsAvg).toFixed(0)}%.`
+      : `Current cash balance is ${Math.abs(pctVsAvg).toFixed(0)}% ${dir} than the average of the last ${withActual.length} days.`;
+  }
+  return isAr
+    ? `لم ينخفض الرصيد خلال الفترة عن الحد الأدنى (${fmt(minThreshold)} ${currCode}).`
+    : `No days in this period dropped below the minimum cash threshold of ${fmt(minThreshold)} ${currCode}.`;
 }
 
 // ── Types (UI shape; data from API) ────────────────────────────────────────────
@@ -208,12 +252,13 @@ export default function CashPositioningPage() {
   const cashData = todayQuery.data;
   const totalFromApi = todayQuery.totalBalance;
   const cashLoading = todayQuery.isLoading;
-  const { data: txList = [] } = useTransactions(currentTenant?.id, {});
+  const { data: txList = [] } = useTransactions(currentTenant?.id, { limit: 2000 });
 
   const [explainOpen, setExplainOpen] = useState(false);
   const [minCashThreshold, setMinCashThreshold] = useState(DEFAULT_MIN_CASH_THRESHOLD);
   const [analysisTab, setAnalysisTab] = useState<"account" | "bank" | "liquidity">("account");
   const [exporting, setExporting] = useState(false);
+  const [txDisplayLimit, setTxDisplayLimit] = useState(200);
 
   const handleRefresh = () => {
     todayQuery.refetch();
@@ -359,6 +404,27 @@ export default function CashPositioningPage() {
   const isOverdraft = closingBal < 0;
   const vatAmount = rawTransactions.filter((t) => t.vatRingfenced).reduce((s, t) => s + Math.abs(t.amount), 0);
 
+  // Net cash flow last 30 days (from transactions) + runway + risk point for KPI strip
+  const netFlow30RunwayRisk = useMemo(() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const from = thirtyDaysAgo.toISOString().slice(0, 10);
+    const last30 = (txList ?? []).filter((t) => (t.txn_date || t.created_at?.slice(0, 10) || "") >= from);
+    const netFlow30 = last30.reduce((s, t) => s + (t.amount ?? 0), 0);
+    const runwayMonths: number | null =
+      netFlow30 >= 0 ? null : (totalFromApi ?? 0) / Math.abs(netFlow30);
+    const riskPoint =
+      runwayMonths == null
+        ? null
+        : runwayMonths > 12
+          ? "none_in_12"
+          : runwayMonths;
+    return { netFlow30, runwayMonths, riskPoint };
+  }, [txList, totalFromApi]);
+
+  const { netFlow30, runwayMonths, riskPoint } = netFlow30RunwayRisk;
+  const asOfDate = new Date().toLocaleDateString(isAr ? "ar-SA" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
+
   // Map history points by YYYY-MM-DD for chart
   const historyByDate = useMemo(() => {
     const map: Record<string, number> = {};
@@ -398,6 +464,21 @@ export default function CashPositioningPage() {
     return points;
   }, [totalFromApi, isAr, historyByDate]);
 
+  // Daily insight message (rule-based; depends on chartData)
+  const dailyInsightMessage = useMemo(
+    () =>
+      getDailyInsight(
+        chartData,
+        totalFromApi ?? 0,
+        minCashThreshold,
+        (cashData?.accounts ?? []).map((a) => ({ balance: a.balance })),
+        fmt,
+        currCode,
+        isAr
+      ),
+    [chartData, totalFromApi, minCashThreshold, cashData?.accounts, fmt, currCode, isAr]
+  );
+
   function handleChartClick(_data: unknown) {
     // Optional: could set selectedDate from chart point
   }
@@ -409,6 +490,95 @@ export default function CashPositioningPage() {
           MASTER PANE (LEFT)
       ════════════════════════════════════════════════════════════════════════ */}
       <div className="flex-[3] flex flex-col gap-4 overflow-y-auto p-5 md:p-6 min-w-0 pb-6">
+
+        {/* ── KPI strip (Scenario Planner style) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+          <Card className="border-s-4 border-s-indigo-500 shadow-sm border-border/50 overflow-hidden">
+            <CardHeader className="pb-1 pt-4 px-4">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {isAr ? "إجمالي النقد اليوم" : "Total Cash Today"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {cashLoading ? (
+                <Skeleton className="h-7 w-24" />
+              ) : (
+                <p className="text-xl font-bold tabular-nums tracking-tighter" dir="ltr" suppressHydrationWarning>
+                  {fmt(totalFromApi ?? 0)}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isAr ? "حتى " : "As of "}{asOfDate}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className={cn(
+            "border-s-4 shadow-sm border-border/50 overflow-hidden",
+            (netFlow30 ?? 0) >= 0 ? "border-s-emerald-500" : "border-s-destructive"
+          )}>
+            <CardHeader className="pb-1 pt-4 px-4">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {isAr ? "صافي التدفق (30 يوم)" : "Net Cash Flow (30d)"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className={cn(
+                "text-xl font-bold tabular-nums tracking-tighter",
+                (netFlow30 ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+              )} dir="ltr" suppressHydrationWarning>
+                {(netFlow30 ?? 0) >= 0 ? "+" : ""}{fmt(netFlow30 ?? 0)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isAr ? "بناءً على آخر 30 يوم" : "Based on last 30 days"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className={cn(
+            "border-s-4 shadow-sm border-border/50 overflow-hidden",
+            runwayMonths == null ? "border-s-emerald-500" : (runwayMonths > 6 ? "border-s-amber-500" : "border-s-destructive")
+          )}>
+            <CardHeader className="pb-1 pt-4 px-4">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {isAr ? "المدرج الزمني المتوقع" : "Projected Runway"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className={cn(
+                "text-xl font-bold tabular-nums tracking-tighter",
+                runwayMonths == null ? "text-emerald-600 dark:text-emerald-400" : (runwayMonths > 6 ? "text-amber-600 dark:text-amber-400" : "text-destructive")
+              )}>
+                {runwayMonths == null
+                  ? (isAr ? "∞ (مربح)" : "∞ Profitable")
+                  : `${runwayMonths.toFixed(1)} ${isAr ? "شهر" : "months"}`}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isAr ? "عند معدل الحرق الحالي" : "At current burn rate"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-s-4 border-s-muted shadow-sm border-border/50 overflow-hidden">
+            <CardHeader className="pb-1 pt-4 px-4">
+              <CardTitle className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {isAr ? "أقرب نقطة خطر" : "Next Risk Point"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-xl font-bold tabular-nums tracking-tighter">
+                {riskPoint === "none_in_12"
+                  ? (isAr ? "لا نقص في 12 شهراً" : "None in 12 months")
+                  : typeof riskPoint === "number"
+                    ? (isAr ? `نقص متوقع خلال ${riskPoint.toFixed(0)} شهر` : `Shortfall in ~${riskPoint.toFixed(0)} mo`)
+                    : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isAr ? "أقرب عجز متوقع" : "Earliest projected shortfall"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* ── Header ── */}
         <div>
@@ -898,36 +1068,31 @@ export default function CashPositioningPage() {
             </Button>
           )}
 
-          {/* AI Mustashar insight */}
+          {/* Insight for today (rule-based from chart + totals + threshold) */}
           {aiExpanded && (
-            <div className="rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/8 to-violet-500/5 p-4 shrink-0">
+            <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/8 to-orange-500/5 p-4 shrink-0">
               <div className="flex items-start gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 ring-2 ring-indigo-500/20">
-                  <Bot className="h-4 w-4 text-indigo-500" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15 ring-2 ring-amber-500/20">
+                  <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">
-                      {isAr ? "تنبيه مستشار" : "Mustashar Insight"}
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      {isAr ? "بصيرة اليوم" : "Insight for today"}
                     </p>
                     <button onClick={() => setAiExpanded(false)} className="text-muted-foreground hover:text-foreground transition-colors">
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                   <p className="text-xs text-foreground/80 leading-relaxed mt-1.5">
-                    {isAr
-                      ? <>رصيد HSBC سيتجاوز حد السحب المكشوف المرخص (<strong>{fmt(460_000)}</strong>) بحلول <strong>25 ديسمبر</strong> بسبب دفعات الموردين. أنصح بتحويل <strong>{fmt(3_400_000)}</strong> من QNB لتجنب الغرامات.</>
-                      : <>HSBC will breach its authorized overdraft of <strong>{fmt(460_000)}</strong> by <strong>Dec 25</strong> due to supplier payouts. Consider transferring <strong>{fmt(3_400_000)}</strong> from QNB Corporate to avoid penalty charges.</>
-                    }
+                    {dailyInsightMessage}
                   </p>
                   <div className="flex gap-2 mt-3">
-                    <Button size="sm" className="h-7 text-[11px] gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-[0_0_15px_-5px_rgba(99,102,241,0.5)]">
-                      <Zap className="h-3 w-3" />
-                      {isAr ? "تحويل فوري" : "Transfer Now"}
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1">
-                      <TrendingUp className="h-3 w-3" />
-                      {isAr ? "عرض سيناريوهات" : "View Scenarios"}
+                    <Button size="sm" className="h-7 text-[11px] gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-[0_0_15px_-5px_rgba(99,102,241,0.5)]" asChild>
+                      <Link href="/app/scenario-planner">
+                        <TrendingUp className="h-3 w-3" />
+                        {isAr ? "عرض سيناريوهات" : "View Scenarios"}
+                      </Link>
                     </Button>
                   </div>
                 </div>
@@ -953,54 +1118,70 @@ export default function CashPositioningPage() {
               </Button>
             </div>
 
-            {/* Rows */}
+            {/* Rows — show first N, then "Show more" */}
             <div className="flex-1 overflow-y-auto">
               {filteredTxns.length === 0 ? (
                 <div className="p-6 text-center text-sm text-muted-foreground">
                   {isAr ? "لا توجد معاملات" : "No transactions found"}
                 </div>
               ) : (
-                filteredTxns.map((txn) => (
-                  <div
-                    key={txn.id}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <input type="checkbox" className="h-3.5 w-3.5 rounded shrink-0 accent-primary" />
-                      {txn.type === "out" ? (
-                        <span className="w-5 h-5 rounded-full border-2 border-destructive shrink-0 flex items-center justify-center">
-                          <ArrowDownLeft className="h-3 w-3 text-destructive" />
-                        </span>
-                      ) : (
-                        <span className="w-5 h-5 rounded-full bg-emerald-500 shrink-0 flex items-center justify-center">
-                          <ArrowUpRight className="h-3 w-3 text-white" />
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-[12px] font-medium truncate">
-                            {isAr ? txn.nameAr : txn.nameEn}
+                <>
+                  {filteredTxns.slice(0, txDisplayLimit).map((txn) => (
+                    <div
+                      key={txn.id}
+                      className="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input type="checkbox" className="h-3.5 w-3.5 rounded shrink-0 accent-primary" />
+                        {txn.type === "out" ? (
+                          <span className="w-5 h-5 rounded-full border-2 border-destructive shrink-0 flex items-center justify-center">
+                            <ArrowDownLeft className="h-3 w-3 text-destructive" />
+                          </span>
+                        ) : (
+                          <span className="w-5 h-5 rounded-full bg-emerald-500 shrink-0 flex items-center justify-center">
+                            <ArrowUpRight className="h-3 w-3 text-white" />
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-[12px] font-medium truncate">
+                              {isAr ? txn.nameAr : txn.nameEn}
+                            </p>
+                            {txn.vatRingfenced && (
+                              <Badge className="text-[9px] px-1 py-0 h-4 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                                {isAr ? "ضريبة" : "VAT"}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {isAr ? txn.categoryAr : txn.categoryEn}
                           </p>
-                          {txn.vatRingfenced && (
-                            <Badge className="text-[9px] px-1 py-0 h-4 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
-                              {isAr ? "ضريبة" : "VAT"}
-                            </Badge>
-                          )}
                         </div>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {isAr ? txn.categoryAr : txn.categoryEn}
-                        </p>
                       </div>
-                    </div>
 
-                    <p className={cn(
-                      "text-[12px] font-mono font-semibold tabular-nums shrink-0",
-                      txn.amount < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
-                    )} dir="ltr" suppressHydrationWarning>
-                      {txn.amount < 0 ? "-" : "+"}{fmtAbs(txn.amount)}
-                    </p>
-                  </div>
-                ))
+                      <p className={cn(
+                        "text-[12px] font-mono font-semibold tabular-nums shrink-0",
+                        txn.amount < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
+                      )} dir="ltr" suppressHydrationWarning>
+                        {txn.amount < 0 ? "-" : "+"}{fmtAbs(txn.amount)}
+                      </p>
+                    </div>
+                  ))}
+                  {filteredTxns.length > txDisplayLimit && (
+                    <div className="p-2 border-t border-border/40 bg-muted/20">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-8 text-xs"
+                        onClick={() => setTxDisplayLimit((n) => n + 200)}
+                      >
+                        {isAr
+                          ? `عرض المزيد (${Math.min(200, filteredTxns.length - txDisplayLimit)})`
+                          : `Show more (${Math.min(200, filteredTxns.length - txDisplayLimit)})`}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </Card>

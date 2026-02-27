@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/finch-co/cashflow/internal/analysis"
 	"github.com/finch-co/cashflow/internal/domain"
-	"github.com/finch-co/cashflow/internal/usecase"
 )
 
 // analysisLatestResponse is the snake_case JSON response for GET /analysis/latest and POST /analysis/run.
@@ -137,12 +137,12 @@ func mapAnalysisToResponse(a *domain.CashAnalysis) analysisLatestResponse {
 
 // AnalysisHandler handles HTTP requests for the cash analysis API.
 type AnalysisHandler struct {
-	uc   *usecase.AnalysisUseCase
+	uc   *analysis.UseCase
 	repo domain.AnalysisRepository
 }
 
 // NewAnalysisHandler creates a new analysis HTTP handler.
-func NewAnalysisHandler(uc *usecase.AnalysisUseCase, repo domain.AnalysisRepository) *AnalysisHandler {
+func NewAnalysisHandler(uc *analysis.UseCase, repo domain.AnalysisRepository) *AnalysisHandler {
 	return &AnalysisHandler{uc: uc, repo: repo}
 }
 

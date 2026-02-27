@@ -12,17 +12,17 @@ import (
 
 	"github.com/finch-co/cashflow/internal/adapter/mq"
 	"github.com/finch-co/cashflow/internal/domain"
-	"github.com/finch-co/cashflow/internal/usecase"
+	"github.com/finch-co/cashflow/internal/ingestion"
 )
 
 // IngestionHandler handles HTTP requests for the ingestion service.
 type IngestionHandler struct {
-	uc        *usecase.IngestionUseCase
+	uc        *ingestion.UseCase
 	publisher *mq.Publisher
 }
 
 // NewIngestionHandler creates a new ingestion handler.
-func NewIngestionHandler(uc *usecase.IngestionUseCase, publisher *mq.Publisher) *IngestionHandler {
+func NewIngestionHandler(uc *ingestion.UseCase, publisher *mq.Publisher) *IngestionHandler {
 	return &IngestionHandler{uc: uc, publisher: publisher}
 }
 

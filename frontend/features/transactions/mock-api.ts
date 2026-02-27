@@ -184,6 +184,9 @@ function delay(ms = 350) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+const DEFAULT_TX_LIMIT = 2000;
+const MAX_TX_LIMIT = 10000;
+
 export async function fetchTransactions(
   tenantId: string | undefined,
   filters: TransactionFilters = {}
@@ -211,7 +214,12 @@ export async function fetchTransactions(
   if (filters.to) rows = rows.filter((t) => t.txn_date <= filters.to!);
   if (filters.account_id) rows = rows.filter((t) => t.account_id === filters.account_id);
 
-  return rows;
+  // Sort by date desc (newest first)
+  rows = [...rows].sort((a, b) => (b.txn_date || "").localeCompare(a.txn_date || ""));
+
+  const limit = Math.min(MAX_TX_LIMIT, filters.limit ?? DEFAULT_TX_LIMIT);
+  const offset = Math.max(0, filters.offset ?? 0);
+  return rows.slice(offset, offset + limit);
 }
 
 export async function updateTransaction(

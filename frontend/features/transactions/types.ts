@@ -58,6 +58,8 @@ export interface TransactionFilters {
   from?: string;
   to?: string;
   account_id?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface UpdateTransactionPayload {

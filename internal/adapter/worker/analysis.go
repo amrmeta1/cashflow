@@ -8,11 +8,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/finch-co/cashflow/internal/adapter/mq"
-	"github.com/finch-co/cashflow/internal/usecase"
+	"github.com/finch-co/cashflow/internal/analysis"
 )
 
 // NewAnalysisMessageHandler returns a MessageHandler that runs cash analysis and publishes completion.
-func NewAnalysisMessageHandler(uc *usecase.AnalysisUseCase, publisher *mq.Publisher) mq.MessageHandler {
+func NewAnalysisMessageHandler(uc *analysis.UseCase, publisher *mq.Publisher) mq.MessageHandler {
 	return func(ctx context.Context, env *mq.Envelope) error {
 		tenantID, err := uuid.Parse(env.TenantID)
 		if err != nil {

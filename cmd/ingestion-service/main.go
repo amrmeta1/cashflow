@@ -17,10 +17,11 @@ import (
 	"github.com/finch-co/cashflow/internal/adapter/integrations"
 	"github.com/finch-co/cashflow/internal/adapter/mq"
 	"github.com/finch-co/cashflow/internal/adapter/worker"
+	"github.com/finch-co/cashflow/internal/analysis"
 	"github.com/finch-co/cashflow/internal/auth"
 	"github.com/finch-co/cashflow/internal/config"
+	"github.com/finch-co/cashflow/internal/ingestion"
 	"github.com/finch-co/cashflow/internal/observability"
-	"github.com/finch-co/cashflow/internal/usecase"
 )
 
 func main() {
@@ -87,8 +88,8 @@ func run() error {
 	idempotencyRepo := db.NewIdempotencyRepo(pool)
 	analysisRepo := db.NewAnalysisRepo(pool)
 
-	// Init use cases
-	ingestionUC := usecase.NewIngestionUseCase(
+	// Init use cases (bounded contexts: ingestion, analysis)
+	ingestionUC := ingestion.NewUseCase(
 		bankAccountRepo,
 		rawTxnRepo,
 		bankTxnRepo,
@@ -96,7 +97,7 @@ func run() error {
 		idempotencyRepo,
 		publisher,
 	)
-	analysisUC := usecase.NewAnalysisUseCase(analysisRepo)
+	analysisUC := analysis.NewUseCase(analysisRepo)
 
 	// Init HTTP handlers
 	ingestionHandler := httpAdapter.NewIngestionHandler(ingestionUC, publisher)
