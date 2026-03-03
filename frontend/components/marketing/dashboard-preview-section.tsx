@@ -7,7 +7,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export function DashboardPreviewSection() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const isAr = locale === "ar";
 
   return (
@@ -20,15 +20,13 @@ export function DashboardPreviewSection() {
           className="text-center mb-14"
         >
           <span className="inline-flex rounded-full border border-neon/30 bg-neon/10 px-4 py-1.5 text-xs font-medium text-neon mb-4">
-            {isAr ? "لوحة التحكم" : "Interactive Dashboard"}
+            {t.marketing.landing.dashboard.badge}
           </span>
           <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white">
-            {isAr ? "رؤية سيولتك في مكان واحد" : "Your Liquidity in One Place"}
+            {t.marketing.landing.dashboard.title}
           </h2>
           <p className="text-zinc-400 mt-4 max-w-2xl mx-auto text-lg">
-            {isAr
-              ? "توقعات ١٣ أسبوعًا، تنبيهات الذكاء الاصطناعي، وتقارير مجلس الإدارة بنقرة واحدة."
-              : "13-week forecasts, AI alerts, and board-ready reports in one click."}
+            {t.marketing.landing.dashboard.description}
           </p>
         </motion.div>
 
@@ -44,7 +42,7 @@ export function DashboardPreviewSection() {
               <div className="flex items-center gap-2 px-4 py-3 border-b border-neon/20">
                 <BarChart3 className="h-5 w-5 text-neon" />
                 <span className="text-sm font-semibold text-white">
-                  {isAr ? "تطور السيولة — ١٣ أسبوعًا" : "Cash Evolution — 13 Weeks"}
+                  {t.marketing.landing.dashboard.chartTitle}
                 </span>
               </div>
               <div className="flex-1 flex items-end gap-1 p-4">
@@ -64,10 +62,11 @@ export function DashboardPreviewSection() {
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2">
             <Link
               href="/demo"
-              className="inline-flex items-center gap-2 rounded-lg bg-neon/90 text-landing-darker px-5 py-2.5 text-sm font-semibold hover:bg-neon transition-all"
+              className="inline-flex items-center gap-2 rounded-lg bg-neon/90 text-landing-darker px-5 py-2.5 text-sm font-semibold hover:bg-neon transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon focus-visible:ring-offset-2 focus-visible:ring-offset-landing-darker"
+              aria-label={isAr ? "جرب العرض التوضيحي" : "Try interactive demo"}
             >
-              {isAr ? "جرب العرض" : "Try Demo"}
-              <ArrowRight className={cn("h-4 w-4", isAr && "rotate-180")} />
+              {t.marketing.landing.dashboard.tryDemo}
+              <ArrowRight className={cn("h-4 w-4", isAr && "rotate-180")} aria-hidden="true" />
             </Link>
           </div>
         </motion.div>

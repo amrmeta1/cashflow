@@ -398,6 +398,54 @@ export const dictionaries = {
       security: "Security",
       partners: "For Accounting Firms",
       features: "Features",
+      landing: {
+        heroBadge: "The First AI-Native CFO for the GCC",
+        heroTitle: "Don't Just Track Cash. Predict It.",
+        heroDescription: "Replace chaotic spreadsheets with AI that cleans your bank data, predicts your cash runway, ring-fences VAT, and automates collections.",
+        requestDemoBtn: "Request Demo",
+        startFreeBtn: "Start Free Trial",
+        trustedBy: "Trusted by leading GCC enterprises",
+        stats: {
+          aiAccuracy: "AI accuracy",
+          monthsRunway: "months runway",
+          gccWaitlist: "GCC waitlist",
+          aiAgents: "AI agents",
+        },
+        platform: {
+          badge: "Platform",
+          title: "Built for GCC Enterprises",
+          description: "Every feature purpose-built for GCC compliance and operational realities.",
+          agents: {
+            title: "Agentic AI: Raqib, Mutawaqi, Mustashar",
+            description: "Three AI agents watch, forecast, and advise on your cash—24/7, GCC-aware.",
+          },
+          project: {
+            title: "Project Cash Flow & Consolidation",
+            description: "Per-project visibility and group consolidation for holding companies.",
+          },
+          consolidation: {
+            title: "Group Consolidation",
+            description: "Multi-entity rollups, intercompany netting, and group reporting.",
+          },
+          compliance: {
+            title: "GCC Compliance & ZATCA VAT",
+            description: "ZATCA-ready VAT isolation, Zakat calendar, and audit trails.",
+          },
+        },
+        dashboard: {
+          badge: "Interactive Dashboard",
+          title: "Your Liquidity in One Place",
+          description: "13-week forecasts, AI alerts, and board-ready reports in one click.",
+          chartTitle: "Cash Evolution — 13 Weeks",
+          tryDemo: "Try Demo",
+        },
+        finalCta: {
+          title: "Ready for total financial clarity?",
+          description: "Join hundreds of GCC businesses.",
+          requestDemo: "Request Demo",
+          startFree: "Start Free",
+        },
+      },
     },
   },
   ar: {
@@ -799,6 +847,54 @@ export const dictionaries = {
       security: "الأمان",
       partners: "لشركات المحاسبة",
       features: "المميزات",
+      landing: {
+        heroBadge: "أول CFO مدعوم بالذكاء الاصطناعي في الخليج",
+        heroTitle: "لا تتتبع السيولة فحسب. تنبأ بها.",
+        heroDescription: "استبدل جداول البيانات الفوضوية بذكاء اصطناعي ينظف بياناتك البنكية، يتنبأ بمدار سيولتك، ويعزل ضريبة القيمة المضافة ويؤتمت تحصيلاتك.",
+        requestDemoBtn: "اطلب عرضًا",
+        startFreeBtn: "ابدأ تجربة مجانية",
+        trustedBy: "موثوق به من قبل شركات رائدة في الخليج",
+        stats: {
+          aiAccuracy: "دقة AI",
+          monthsRunway: "أشهر مدة",
+          gccWaitlist: "قائمة الانتظار",
+          aiAgents: "وكلاء AI",
+        },
+        platform: {
+          badge: "المنصة",
+          title: "مصمم لشركات الخليج",
+          description: "كل ميزة مصممة لمتطلبات الامتثال والعمليات في منطقة الخليج.",
+          agents: {
+            title: "وكلاء AI: رقيب، متوقع، مستشار",
+            description: "ثلاثة وكلاء AI يراقبون ويتوقعون وينصحون في سيولتك—على مدار الساعة، واعون بمنطقة الخليج.",
+          },
+          project: {
+            title: "تدفق نقدي للمشاريع والتوحيد",
+            description: "رؤية لكل مشروع وتوحيد مجموعة للشركات القابضة.",
+          },
+          consolidation: {
+            title: "توحيد المجموعة",
+            description: "تجمعات متعددة الكيانات ومقاصة بين الشركات وتقارير المجموعة.",
+          },
+          compliance: {
+            title: "الامتثال الخليجي وضريبة القيمة المضافة",
+            description: "عزل ضريبة القيمة المضافة جاهز للزاتكا، تقويم الزكاة، ومسارات التدقيق.",
+          },
+        },
+        dashboard: {
+          badge: "لوحة التحكم",
+          title: "رؤية سيولتك في مكان واحد",
+          description: "توقعات ١٣ أسبوعًا، تنبيهات الذكاء الاصطناعي، وتقارير مجلس الإدارة بنقرة واحدة.",
+          chartTitle: "تطور السيولة — ١٣ أسبوعًا",
+          tryDemo: "جرب العرض",
+        },
+        finalCta: {
+          title: "هل أنت مستعد لوضوح مالي كامل؟",
+          description: "انضم إلى مئات الشركات الخليجية.",
+          requestDemo: "اطلب عرضًا",
+          startFree: "ابدأ مجانًا",
+        },
+      },
     },
   },
 } as const;
