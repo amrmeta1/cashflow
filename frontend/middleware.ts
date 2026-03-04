@@ -9,6 +9,7 @@ import { TENANT_HEADER, TENANT_COOKIE } from "@/lib/tenant-constants";
 
 /** Base host (no subdomain) for tenant subdomain resolution, e.g. tadfuq.ai */
 const BASE_HOST = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "tadfuq.ai";
+const DEV_SKIP_AUTH = process.env.NEXT_PUBLIC_DEV_SKIP_AUTH === "true";
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -20,17 +21,23 @@ export async function middleware(request: NextRequest) {
   // Resolve slug -> tenant_id would require edge fetch to your API; for now we fall back to JWT/demo.
   const _slugFromHost = getTenantSlugFromHost(request.headers.get("host") ?? "");
 
-  // 3) Fall back to JWT (Keycloak session tenant_id)
-  if (!tenantId) {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: process.env.NODE_ENV === "production",
-    });
-    tenantId = token?.tenantId ?? null;
+  // 3) Fall back to JWT (Keycloak session tenant_id) - skip if DEV_SKIP_AUTH
+  if (!tenantId && !DEV_SKIP_AUTH) {
+    try {
+      const token = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET,
+        secureCookie: process.env.NODE_ENV === "production",
+      });
+      tenantId = token?.tenantId ?? null;
+    } catch (error) {
+      // Ignore token errors in dev mode
+      console.error("Failed to get token:", error);
+    }
   }
 
-  if (!tenantId && process.env.NODE_ENV !== "production") {
+  // Default to demo tenant in dev or when DEV_SKIP_AUTH is enabled
+  if (!tenantId && (process.env.NODE_ENV !== "production" || DEV_SKIP_AUTH)) {
     tenantId = "demo";
   }
 
