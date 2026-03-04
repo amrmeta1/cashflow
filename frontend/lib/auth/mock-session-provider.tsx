@@ -1,42 +1,21 @@
 "use client";
 
-import React, { createContext, useContext } from "react";
+import React from "react";
+import { SessionProvider as NextAuthSessionProvider } from "next-auth/react";
 
-interface MockSession {
-  user?: {
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-  };
-  expires?: string;
-}
-
-interface MockSessionContextValue {
-  data: MockSession | null;
-  status: "authenticated" | "loading" | "unauthenticated";
-  update: () => Promise<MockSession | null>;
-}
-
-const MockSessionContext = createContext<MockSessionContextValue>({
-  data: null,
-  status: "unauthenticated",
-  update: async () => null,
-});
-
+/**
+ * MockSessionProvider wraps NextAuthSessionProvider but doesn't require
+ * a valid NextAuth backend. It allows useSession() to work without errors.
+ * 
+ * When DEV_SKIP_AUTH=true, this provider is used instead of the real SessionProvider.
+ * The session will always be null/unauthenticated, which is what we want for dev mode.
+ */
 export function MockSessionProvider({ children }: { children: React.ReactNode }) {
-  const value: MockSessionContextValue = {
-    data: null,
-    status: "unauthenticated",
-    update: async () => null,
-  };
-
+  // We still use the real SessionProvider, but with session={null}
+  // This ensures useSession() works correctly throughout the app
   return (
-    <MockSessionContext.Provider value={value}>
+    <NextAuthSessionProvider session={null} refetchInterval={0} refetchOnWindowFocus={false}>
       {children}
-    </MockSessionContext.Provider>
+    </NextAuthSessionProvider>
   );
-}
-
-export function useMockSession() {
-  return useContext(MockSessionContext);
 }
