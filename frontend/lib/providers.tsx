@@ -14,6 +14,7 @@ import { TenantSegmentProvider } from "@/contexts/TenantSegmentContext";
 import { ToastProvider } from "@/components/ui/toast";
 import { CommandMenuProvider } from "@/lib/command-store";
 import { CommandPalette } from "@/components/global/command-palette";
+import { MockSessionProvider } from "@/lib/auth/mock-session-provider";
 
 const DEV_SKIP_AUTH = process.env.NEXT_PUBLIC_DEV_SKIP_AUTH === "true";
 
@@ -56,9 +57,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </QueryClientProvider>
   );
 
+  const AuthWrapper = DEV_SKIP_AUTH ? MockSessionProvider : SessionProvider;
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      {DEV_SKIP_AUTH ? content : <SessionProvider>{content}</SessionProvider>}
+      <AuthWrapper>{content}</AuthWrapper>
     </ThemeProvider>
   );
 }
