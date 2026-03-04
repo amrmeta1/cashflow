@@ -9,6 +9,10 @@ interface Session {
     image?: string | null;
   };
   expires?: string;
+  accessToken?: string;
+  roles?: string[];
+  tenantId?: string;
+  error?: string;
 }
 
 interface SessionContextValue {
