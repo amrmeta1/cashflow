@@ -15,6 +15,8 @@ import { ToastProvider } from "@/components/ui/toast";
 import { CommandMenuProvider } from "@/lib/command-store";
 import { CommandPalette } from "@/components/global/command-palette";
 
+const DEV_SKIP_AUTH = process.env.NEXT_PUBLIC_DEV_SKIP_AUTH === "true";
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -29,32 +31,34 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
+  const content = (
+    <QueryClientProvider client={queryClient}>
+      <I18nProvider>
+        <TenantProvider>
+          <CompanyProvider>
+          <TenantSegmentProvider>
+          <CurrencyProvider>
+          <EntityProvider>
+          <ScenarioProvider>
+          <ToastProvider>
+            <CommandMenuProvider>
+              <CommandPalette />
+              {children}
+            </CommandMenuProvider>
+          </ToastProvider>
+          </ScenarioProvider>
+          </EntityProvider>
+          </CurrencyProvider>
+          </TenantSegmentProvider>
+          </CompanyProvider>
+        </TenantProvider>
+      </I18nProvider>
+    </QueryClientProvider>
+  );
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <SessionProvider>
-        <QueryClientProvider client={queryClient}>
-          <I18nProvider>
-            <TenantProvider>
-              <CompanyProvider>
-              <TenantSegmentProvider>
-              <CurrencyProvider>
-              <EntityProvider>
-              <ScenarioProvider>
-              <ToastProvider>
-                <CommandMenuProvider>
-                  <CommandPalette />
-                  {children}
-                </CommandMenuProvider>
-              </ToastProvider>
-              </ScenarioProvider>
-              </EntityProvider>
-              </CurrencyProvider>
-              </TenantSegmentProvider>
-              </CompanyProvider>
-            </TenantProvider>
-          </I18nProvider>
-        </QueryClientProvider>
-      </SessionProvider>
+      {DEV_SKIP_AUTH ? content : <SessionProvider>{content}</SessionProvider>}
     </ThemeProvider>
   );
 }

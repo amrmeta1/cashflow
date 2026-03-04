@@ -4,7 +4,7 @@
 # CashFlow.ai – Monorepo Makefile
 # ──────────────────────────────────────────────
 
-DOCKER_COMPOSE = docker compose -f infra/docker/docker-compose.yml
+DOCKER_COMPOSE = docker compose -f deploy/docker/docker-compose.yml
 MIGRATE_DSN    = postgres://cashflow:cashflow@localhost:5433/cashflow?sslmode=disable
 BINARY_TENANT  = bin/tenant-service
 BINARY_INGEST  = bin/ingestion-service
@@ -27,10 +27,10 @@ run-all: ## Start full stack (Docker infra + migrate + frontend). Frontend uses 
 	@chmod +x scripts/run-all.sh 2>/dev/null; ./scripts/run-all.sh
 
 run: ## Run tenant-service locally
-	cd backend && go run ./cmd/tenant-service
+	go run ./cmd/tenant-service
 
 run-ingestion: ## Run ingestion-service locally (requires postgres + keycloak + rabbitmq)
-	cd backend && SERVER_PORT=8081 go run ./cmd/ingestion-service
+	SERVER_PORT=8081 go run ./cmd/ingestion-service
 
 run-worker: ## Run the example consumer worker
 	go run ./cmd/worker-example
@@ -46,16 +46,16 @@ build-all: build build-ingestion ## Build all service binaries
 # ── Database (golang-migrate) ────────────────
 
 migrate: ## Run all pending migrations
-	migrate -path backend/migrations -database "$(MIGRATE_DSN)" up
+	migrate -path migrations -database "$(MIGRATE_DSN)" up
 
 migrate-down: ## Roll back the last migration
-	migrate -path backend/migrations -database "$(MIGRATE_DSN)" down 1
+	migrate -path migrations -database "$(MIGRATE_DSN)" down 1
 
 migrate-drop: ## Drop everything (DANGER)
-	migrate -path backend/migrations -database "$(MIGRATE_DSN)" drop -f
+	migrate -path migrations -database "$(MIGRATE_DSN)" drop -f
 
 migrate-create: ## Create a new migration (usage: make migrate-create NAME=add_foo)
-	migrate create -ext sql -dir backend/migrations -seq $(NAME)
+	migrate create -ext sql -dir migrations -seq $(NAME)
 
 # ── Code generation ──────────────────────────
 
