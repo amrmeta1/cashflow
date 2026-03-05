@@ -6,8 +6,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/amrmeta1/cashflow.git
-    targetRevision: HEAD
+    repoURL: https://github.com/amrmeta1/tadfuq-platform.git
+    targetRevision: refactor/monorepo-structure
     path: infra/k8s/base
     directory:
       include: ingestion-service.yaml
