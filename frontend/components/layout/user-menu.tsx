@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut, useSession } from "@/lib/auth/session";
+import { signOut, useSession } from "next-auth/react";
 import { LogOut, Settings, CreditCard, User, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";

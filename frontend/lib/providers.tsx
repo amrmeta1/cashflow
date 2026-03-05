@@ -14,10 +14,6 @@ import { TenantSegmentProvider } from "@/contexts/TenantSegmentContext";
 import { ToastProvider } from "@/components/ui/toast";
 import { CommandMenuProvider } from "@/lib/command-store";
 import { CommandPalette } from "@/components/global/command-palette";
-import { MockSessionProvider } from "@/lib/auth/mock-session-provider";
-import { DemoProvider } from "@/contexts/DemoContext";
-
-const DEV_SKIP_AUTH = process.env.NEXT_PUBLIC_DEV_SKIP_AUTH === "true";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -33,60 +29,34 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  const AuthWrapper = DEV_SKIP_AUTH ? MockSessionProvider : SessionProvider;
-
-  // Simplified providers for DEV mode - only essentials
-  if (DEV_SKIP_AUTH) {
-    return (
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-        <AuthWrapper>
-          <QueryClientProvider client={queryClient}>
-            <DemoProvider slug="demo">
-              <I18nProvider>
-                <TenantProvider>
-                  <CompanyProvider>
-                    {children}
-                  </CompanyProvider>
-                </TenantProvider>
-              </I18nProvider>
-            </DemoProvider>
-          </QueryClientProvider>
-        </AuthWrapper>
-      </ThemeProvider>
-    );
-  }
-
-  // Full providers for production
   const content = (
     <QueryClientProvider client={queryClient}>
-      <DemoProvider slug="demo">
-        <I18nProvider>
-          <TenantProvider>
-            <CompanyProvider>
-            <TenantSegmentProvider>
-            <CurrencyProvider>
-            <EntityProvider>
-            <ScenarioProvider>
-            <ToastProvider>
-              <CommandMenuProvider>
-                <CommandPalette />
-                {children}
-              </CommandMenuProvider>
-            </ToastProvider>
-            </ScenarioProvider>
-            </EntityProvider>
-            </CurrencyProvider>
-            </TenantSegmentProvider>
-            </CompanyProvider>
-          </TenantProvider>
-        </I18nProvider>
-      </DemoProvider>
+      <I18nProvider>
+        <TenantProvider>
+          <CompanyProvider>
+          <TenantSegmentProvider>
+          <CurrencyProvider>
+          <EntityProvider>
+          <ScenarioProvider>
+          <ToastProvider>
+            <CommandMenuProvider>
+              <CommandPalette />
+              {children}
+            </CommandMenuProvider>
+          </ToastProvider>
+          </ScenarioProvider>
+          </EntityProvider>
+          </CurrencyProvider>
+          </TenantSegmentProvider>
+          </CompanyProvider>
+        </TenantProvider>
+      </I18nProvider>
     </QueryClientProvider>
   );
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <AuthWrapper>{content}</AuthWrapper>
+      <SessionProvider>{content}</SessionProvider>
     </ThemeProvider>
   );
 }

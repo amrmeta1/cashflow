@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth/session";
+import { getSession } from "next-auth/react";
 import { generateRequestId } from "@/lib/utils";
 import type { ApiError } from "./types";
 

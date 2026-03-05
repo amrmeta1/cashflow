@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useSession } from "@/lib/auth/session";
+import { useSession } from "next-auth/react";
 import { getProfile } from "@/lib/api/tenant-api";
 import { DEV_SKIP_AUTH } from "@/lib/api/mock-data";
 import type { User } from "@/lib/api/types";

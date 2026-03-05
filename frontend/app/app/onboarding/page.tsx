@@ -34,7 +34,7 @@ import {
   type CountryCode,
   type CompanySize,
 } from "@/contexts/CompanyContext";
-import { useSession } from "@/lib/auth/session";
+import { useSession } from "next-auth/react";
 import { createTenant } from "@/lib/api/tenant-api";
 import { useTenant } from "@/lib/hooks/use-tenant";
 
