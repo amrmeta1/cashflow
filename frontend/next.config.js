@@ -6,6 +6,10 @@ const nextConfig = {
   generateBuildId: async () => {
     return 'build-' + Date.now()
   },
+  // Disable SSR for all pages to avoid Context Provider issues
+  experimental: {
+    appDir: true,
+  },
   // Avoid "Unable to snapshot resolve dependencies" (webpack PackFileCacheStrategy) in dev
   webpack: (config, { dev }) => {
     if (dev) {
