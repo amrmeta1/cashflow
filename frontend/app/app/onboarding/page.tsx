@@ -39,6 +39,8 @@ import { createTenant } from "@/lib/api/tenant-api";
 import { useTenant } from "@/lib/hooks/use-tenant";
 
 export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+export const revalidate = 0;
 
 // ── Static data ───────────────────────────────────────────────────────────────
 
