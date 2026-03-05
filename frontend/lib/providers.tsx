@@ -35,6 +35,28 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const AuthWrapper = DEV_SKIP_AUTH ? MockSessionProvider : SessionProvider;
 
+  // Simplified providers for DEV mode - only essentials
+  if (DEV_SKIP_AUTH) {
+    return (
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <AuthWrapper>
+          <QueryClientProvider client={queryClient}>
+            <DemoProvider slug="demo">
+              <I18nProvider>
+                <TenantProvider>
+                  <CompanyProvider>
+                    {children}
+                  </CompanyProvider>
+                </TenantProvider>
+              </I18nProvider>
+            </DemoProvider>
+          </QueryClientProvider>
+        </AuthWrapper>
+      </ThemeProvider>
+    );
+  }
+
+  // Full providers for production
   const content = (
     <QueryClientProvider client={queryClient}>
       <DemoProvider slug="demo">
