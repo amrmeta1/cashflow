@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cashflow-ingress
+  namespace: cashflow-dev
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
+    # Certificate ARN will be added after terraform apply
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERT_ID
+spec:
+  rules:
+  # Frontend
+  - host: app.TadFuq.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 3000
+  # Backend APIs
+  - host: api.TadFuq.ai
+    http:
+      paths:
+      - path: /api/tenant
+        pathType: Prefix
+        backend:
+          service:
+            name: tenant-service
+            port:
+              number: 8080
+      - path: /tenants
+        pathType: Prefix
+        backend:
+          service:
+            name: tenant-service
+            port:
+              number: 8080
+      - path: /me
+        pathType: Prefix
+        backend:
+          service:
+            name: tenant-service
+            port:
+              number: 8080
+      - path: /audit-logs
+        pathType: Prefix
+        backend:
+          service:
+            name: tenant-service
+            port:
+              number: 8080
+      - path: /api/ingestion
+        pathType: Prefix
+        backend:
+          service:
+            name: ingestion-service
+            port:
+              number: 8081
