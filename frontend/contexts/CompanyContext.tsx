@@ -191,6 +191,17 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
 export function useCompany() {
   const ctx = useContext(CompanyContext);
-  if (!ctx) throw new Error("useCompany must be used within CompanyProvider");
+  if (!ctx) {
+    // Return default values instead of throwing error to allow SSR
+    return {
+      profile: DEFAULT_PROFILE,
+      updateCompanyProfile: () => {},
+      setCountry: () => {},
+      demoOverride: null,
+      setDemoOverride: () => {},
+      resetToDefaults: () => {},
+      isHydrated: false,
+    };
+  }
   return ctx;
 }

@@ -8,12 +8,14 @@ import { useCompany } from "@/contexts/CompanyContext";
 const ONBOARDING_PATH = "/app/onboarding";
 
 export function OnboardingGuard({ children }: { children: React.ReactNode }) {
-  const { profile, isHydrated } = useCompany();
+  const companyContext = useCompany();
+  const profile = companyContext?.profile;
+  const isHydrated = companyContext?.isHydrated;
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (isHydrated && !profile.isConfigured && pathname !== ONBOARDING_PATH) {
+    if (isHydrated && !profile?.isConfigured && pathname !== ONBOARDING_PATH) {
       router.replace(ONBOARDING_PATH);
     }
   }, [isHydrated, profile.isConfigured, pathname, router]);
