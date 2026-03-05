@@ -7,8 +7,12 @@ export default function RootPage() {
   const router = useRouter();
   
   useEffect(() => {
-    router.push("/home");
+    router.replace("/home");
   }, [router]);
   
-  return null;
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center">
+      <div className="text-center">Loading...</div>
+    </div>
+  );
 }
