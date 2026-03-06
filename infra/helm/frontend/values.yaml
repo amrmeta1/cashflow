@@ -5,7 +5,7 @@ replicaCount: 2
 image:
   repository: 747253121951.dkr.ecr.us-east-1.amazonaws.com/cashflow/frontend
   pullPolicy: Always
-  tag: "test"  # Test build with simple page
+  tag: "production"  # Production build with standalone output
 
 imagePullSecrets: []
 nameOverride: ""
@@ -85,7 +85,7 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
   PORT: "3000"
   HOSTNAME: "0.0.0.0"
-  NEXTAUTH_URL: "http://app.tadfuq.ai"
+  NEXTAUTH_URL: "http://a5554413828354106a2fe50cd6a3f8ea-464353953.us-east-1.elb.amazonaws.com"
   NEXT_PUBLIC_API_URL: "http://tenant.api.tadfuq.ai"
 
 secrets:
