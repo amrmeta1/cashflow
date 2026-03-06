@@ -38,8 +38,6 @@ import { useSession } from "next-auth/react";
 import { createTenant } from "@/lib/api/tenant-api";
 import { useTenant } from "@/lib/hooks/use-tenant";
 
-export const dynamic = 'force-dynamic';
-
 // ── Static data ───────────────────────────────────────────────────────────────
 
 const COUNTRY_CODES: CountryCode[] = ["QA", "SA", "AE"];

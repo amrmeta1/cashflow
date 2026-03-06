@@ -5,7 +5,7 @@ replicaCount: 2
 image:
   repository: 747253121951.dkr.ecr.us-east-1.amazonaws.com/cashflow/frontend
   pullPolicy: Always
-  tag: "latest"  # Using dev mode image temporarily
+  tag: "production"  # Production build with standalone output
 
 imagePullSecrets: []
 nameOverride: ""
@@ -83,6 +83,8 @@ topologySpreadConstraints:
 env:
   NODE_ENV: production
   NEXT_TELEMETRY_DISABLED: "1"
+  PORT: "3000"
+  HOSTNAME: "0.0.0.0"
   NEXTAUTH_URL: "http://app.tadfuq.ai"
   NEXT_PUBLIC_API_URL: "http://tenant.api.tadfuq.ai"
 
