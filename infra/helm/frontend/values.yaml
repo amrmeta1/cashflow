@@ -5,7 +5,7 @@ replicaCount: 2
 image:
   repository: 747253121951.dkr.ecr.us-east-1.amazonaws.com/cashflow/frontend
   pullPolicy: Always
-  tag: "production"  # Production build with standalone output
+  tag: "test"  # Test build with simple page
 
 imagePullSecrets: []
 nameOverride: ""
