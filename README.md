@@ -1,6 +1,6 @@
-# CashFlow / Tadfuq.ai — Multi-Tenant Financial Platform
+# CashFlow / TadFuq.ai — Multi-Tenant Financial Platform
 
-Production-grade multi-tenant SaaS backend and Next.js frontend for **Tadfuq.ai** (marketing) / **CashFlow.ai** (app), an agentic financial management platform targeting GCC SMEs (Saudi Arabia, Qatar, UAE).
+Production-grade multi-tenant SaaS backend and Next.js frontend for **TadFuq.ai** (marketing) / **CashFlow.ai** (app), an agentic financial management platform targeting GCC SMEs (Saudi Arabia, Qatar, UAE).
 
 ## Architecture Overview
 
@@ -44,8 +44,9 @@ Production-grade multi-tenant SaaS backend and Next.js frontend for **Tadfuq.ai*
 
 - **Row-level isolation**: Every tenant-scoped entity has a `tenant_id` foreign key
 - **Tenant context**: Resolved from JWT custom claim `tenant_id` or `X-Tenant-ID` header
-- **Middleware chain**: `KeycloakAuth → TenantFromHeader → ProvisionUser → RequirePermission`
-- Every API request within tenant scope is validated for membership
+- **Middleware chain**: `KeycloakAuth → TenantFromHeader → ProvisionUser → TenantFromRouteParam → RequireTenantMembership → RequirePermission`
+- Every API request within tenant scope is validated for membership and tenant-route consistency
+- **Rate limit**: 100 requests/minute per tenant on tenant-scoped routes (in-memory per service instance)
 
 ### AuthN/AuthZ
 
@@ -133,7 +134,7 @@ cashflow/
 
 - **Root:** `/` redirects to `/home`.
 - **Landing:** `app/(marketing)/` — layout with `MarketingNavbar` and `LandingFooter`; `home/page.tsx` composes Hero, CustomerLogosBar, StatsSection, PlatformBenefitsSection, DashboardPreviewSection, FinalCtaSection.
-- **Marketing components:** `components/marketing/` — `marketing-navbar.tsx`, `hero-section.tsx`, `customer-logos-bar.tsx`, `stats-section.tsx`, `platform-benefits-section.tsx`, `dashboard-preview-section.tsx`, `final-cta-section.tsx`, `landing-footer.tsx` (Kyriba-style Tadfuq.ai branding).
+- **Marketing components:** `components/marketing/` — `marketing-navbar.tsx`, `hero-section.tsx`, `customer-logos-bar.tsx`, `stats-section.tsx`, `platform-benefits-section.tsx`, `dashboard-preview-section.tsx`, `final-cta-section.tsx`, `landing-footer.tsx` (Kyriba-style TadFuq.ai branding).
 - **App:** `app/app/` — dashboard, transactions, import, onboarding, settings, etc. Wrapped in `AppShell` with sidebar and tenant context.
 - **Demo:** `app/demo/[slug]/` — client demo route; `DemoContext` and `DemoCompanySync` provide company/industry; sidebar and navbar resolve `/app/*` to `/demo/{slug}/*`.
 - **Features:** `features/transactions/` (hooks, mock-api with `addImportedTransactions`, types), `features/import/` (CSV parsing and `useCSVImport`).
@@ -455,10 +456,10 @@ DB_PORT=5433 make run-ingestion
 
 ## Recent Updates (Frontend & Landing)
 
-### Landing Page (Tadfuq.ai)
+### Landing Page (TadFuq.ai)
 
 - **Kyriba-inspired redesign** at `/home`: sticky dark navbar (#111), hero with neon-green CTAs and dashboard preview, customer logos bar, stats section (cream background), platform benefits (4 glowing cards), interactive dashboard preview, final CTA, and heavy dark footer.
-- **Brand:** Tadfuq.ai with **neon green** `#00FFAA` and **gold** `#FFD700`; dark theme `#0A2540` / `#111111`, light sections `#F8F7F4`. Full Arabic RTL and Cairo font.
+- **Brand:** TadFuq.ai with **neon green** `#00FFAA` and **gold** `#FFD700`; dark theme `#0A2540` / `#111111`, light sections `#F8F7F4`. Full Arabic RTL and Cairo font.
 - **Navbar:** Solutions | Platform | Liquidity Performance | Agents | Resources | Pricing | About; language switcher (EN | عربي); Login; **Request Demo** (neon button).
 - **Content:** Agentic AI (Raqib, Mutawaqi, Mustashar), Project Cash Flow, Group Consolidation, GCC compliance & ZATCA VAT.
 
@@ -496,7 +497,7 @@ DB_PORT=5433 make run-ingestion
 ## Frontend — تشغيل واستكشاف الأخطاء
 
 - **تشغيل الواجهة:** من مجلد المشروع: `cd frontend && npm run dev` ثم افتح **نفس الرابط** الذي يظهر في الطرفية (مثلاً `http://localhost:3000`). إذا كان المنفذ 3000 مستخدماً ستظهر رسالة خطأ — أوقف العملية التي تستخدمه أو شغّل على منفذ آخر: `npx next dev -p 3001`.
-- **الصفحة الرئيسية:** الرابط `/` يحوّل تلقائياً إلى `/home`. صفحة الهبوط الجديدة (Tadfuq.ai) تعرض الهيرو، إحصائيات، مميزات المنصة، ومعاينة لوحة التحكم.
+- **الصفحة الرئيسية:** الرابط `/` يحوّل تلقائياً إلى `/home`. صفحة الهبوط الجديدة (TadFuq.ai) تعرض الهيرو، إحصائيات، مميزات المنصة، ومعاينة لوحة التحكم.
 - **وضع الديمو:** افتح `/demo/harbi-contracting` أو `/demo/company-name` لتجربة التطبيق بدون تسجيل مع بيانات تجريبية مخصصة للشركة.
 - **لوحة التحكم `/app/dashboard`:** تحتاج تسجيل الدخول (أو استخدم الديمو). إذا كان `NEXT_PUBLIC_DEV_SKIP_AUTH=true` في `frontend/.env` يمكن الدخول بدون تسجيل. أول دخول قد يحوّلك إلى `/app/onboarding` — أكمل الإعداد لرؤية الـ dashboard. قسم «المعاملات الأخيرة» يعرض معاملات حقيقية من الاستيراد + البيانات التجريبية.
 - **استيراد CSV:** من `/app/import` يمكنك رفع ملف CSV بنكي؛ يتم تحليله في المتصفح وعند التأكيد تُضاف المعاملات إلى صفحة المعاملات ولوحة التحكم.

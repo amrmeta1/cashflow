@@ -33,26 +33,6 @@ services:
       timeout: 3s
       retries: 5
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0
-    container_name: cashflow-keycloak
-    command: start-dev --import-realm
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/cashflow
-      KC_DB_USERNAME: cashflow
-      KC_DB_PASSWORD: cashflow
-      KC_HTTP_PORT: 8180
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-    ports:
-      - "8180:8180"
-    volumes:
-      - ../keycloak/realm-export.json:/opt/keycloak/data/import/cashflow-realm.json:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: cashflow-rabbitmq
@@ -84,10 +64,6 @@ services:
       DB_PASSWORD: cashflow
       DB_NAME: cashflow
       DB_SSLMODE: disable
-      AUTH_ISSUER_URL: http://keycloak:8180/realms/cashflow
-      AUTH_JWKS_URL: http://keycloak:8180/realms/cashflow/protocol/openid-connect/certs
-      AUTH_AUDIENCE: cashflow-api
-      AUTH_JWKS_CACHE_TTL: "300"
       NATS_URL: nats://nats:4222
       OTEL_ENABLED: "false"
     ports:
@@ -113,10 +89,6 @@ services:
       DB_PASSWORD: cashflow
       DB_NAME: cashflow
       DB_SSLMODE: disable
-      AUTH_ISSUER_URL: http://keycloak:8180/realms/cashflow
-      AUTH_JWKS_URL: http://keycloak:8180/realms/cashflow/protocol/openid-connect/certs
-      AUTH_AUDIENCE: cashflow-api
-      AUTH_JWKS_CACHE_TTL: "300"
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       RABBITMQ_PREFETCH_COUNT: "10"
       OTEL_ENABLED: "false"

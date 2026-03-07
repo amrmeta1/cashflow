@@ -1,23 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { Navbar } from "./navbar";
 import { DemoModeBanner } from "./demo-mode-banner";
 import { useTenant } from "@/lib/hooks/use-tenant";
 import { useDemo } from "@/contexts/DemoContext";
 import { useI18n } from "@/lib/i18n/context";
-import { useCommandMenu } from "@/lib/command-store";
-import { listTenants } from "@/lib/api/tenant-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MustasharCopilot } from "@/components/ai/MustasharCopilot";
 import { GlobalReportDialog } from "@/components/global/global-report-dialog";
-import { DEV_SKIP_AUTH, DEMO_TENANT, getMockTenantList } from "@/lib/api/mock-data";
+import { getMockTenantList } from "@/lib/api/mock-data";
 
 function AppShellSkeleton() {
   return (
@@ -54,12 +48,8 @@ function AppShellSkeleton() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const { dir, locale } = useI18n();
-  const { open: openCommandPalette } = useCommandMenu();
+  const { dir } = useI18n();
   const demo = useDemo();
-  const isAr = locale === "ar";
   const {
     currentTenant,
     setCurrentTenant,
@@ -71,82 +61,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const tenantInitDone = useRef(false);
 
   useEffect(() => {
-    if (demo.isDemoMode) {
-      if (tenantInitDone.current) return;
-      tenantInitDone.current = true;
-      const mock = getMockTenantList(demo.companyName);
-      const membershipsWithTenant = mock.data.map((t) => ({
-        id: t.id,
-        tenant_id: t.id,
-        user_id: "",
-        role: "accountant_readonly" as const,
-        status: "active" as const,
-        created_at: t.created_at,
-        updated_at: t.updated_at,
-        tenant: t,
-      }));
-      setMemberships(membershipsWithTenant);
-      if (mock.data.length > 0) setCurrentTenant(mock.data[0]);
-      setIsLoading(false);
-      return;
-    }
-    if (DEV_SKIP_AUTH && status === "unauthenticated") {
-      if (tenantInitDone.current) return;
-      tenantInitDone.current = true;
-      const mock = getMockTenantList();
-      const membershipsWithTenant = mock.data.map((t) => ({
-        id: t.id,
-        tenant_id: t.id,
-        user_id: "",
-        role: "accountant_readonly" as const,
-        status: "active" as const,
-        created_at: t.created_at,
-        updated_at: t.updated_at,
-        tenant: t,
-      }));
-      setMemberships(membershipsWithTenant);
-      if (mock.data.length > 0) {
-        setCurrentTenant(mock.data[0]);
-      }
-      setIsLoading(false);
-      return;
-    }
-    if (status === "unauthenticated" && !DEV_SKIP_AUTH) {
-      router.push("/login");
-    }
-  }, [demo.isDemoMode, demo.companyName, status, router, setCurrentTenant, setMemberships, setIsLoading]);
-
-  const { data: tenantList } = useQuery({
-    queryKey: ["tenants"],
-    queryFn: () => listTenants(),
-    enabled: status === "authenticated" && !DEV_SKIP_AUTH,
-  });
-
-  useEffect(() => {
-    if (DEV_SKIP_AUTH) return;
-    if (!tenantList?.data) return;
     if (tenantInitDone.current) return;
     tenantInitDone.current = true;
-
-    // Authenticated but no tenants (e.g. new user): in dev use demo tenant so pages still render
-    if (tenantList.data.length === 0 && process.env.NODE_ENV !== "production") {
-      const demoMembership = {
-        id: "demo-m",
-        tenant_id: DEMO_TENANT.id,
-        user_id: "",
-        role: "accountant_readonly" as const,
-        status: "active" as const,
-        created_at: DEMO_TENANT.created_at,
-        updated_at: DEMO_TENANT.updated_at,
-        tenant: DEMO_TENANT,
-      };
-      setMemberships([demoMembership]);
-      setCurrentTenant(DEMO_TENANT);
-      setIsLoading(false);
-      return;
-    }
-
-    const membershipsWithTenant = tenantList.data.map((t) => ({
+    
+    const mock = demo.isDemoMode 
+      ? getMockTenantList(demo.companyName)
+      : getMockTenantList();
+      
+    const membershipsWithTenant = mock.data.map((t) => ({
       id: t.id,
       tenant_id: t.id,
       user_id: "",
@@ -156,24 +78,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       updated_at: t.updated_at,
       tenant: t,
     }));
-
+    
     setMemberships(membershipsWithTenant);
-
-    if (tenantList.data.length > 0) {
-      const savedId =
-        typeof window !== "undefined"
-          ? localStorage.getItem("currentTenantId")
-          : null;
-      const found = tenantList.data.find((t) => t.id === savedId);
-      setCurrentTenant(found ?? tenantList.data[0]);
-    }
-
+    if (mock.data.length > 0) setCurrentTenant(mock.data[0]);
     setIsLoading(false);
-  }, [tenantList, setCurrentTenant, setMemberships, setIsLoading]);
+  }, [demo.isDemoMode, demo.companyName, setCurrentTenant, setMemberships, setIsLoading]);
 
-  if (status === "loading" && !DEV_SKIP_AUTH && !demo.isDemoMode) return <AppShellSkeleton />;
-  if (status === "unauthenticated" && !DEV_SKIP_AUTH && !demo.isDemoMode) return null;
-  if ((DEV_SKIP_AUTH || demo.isDemoMode) && status === "unauthenticated" && isLoading) return <AppShellSkeleton />;
+  if (isLoading) return <AppShellSkeleton />;
 
   return (
     <div className="flex h-screen overflow-hidden" dir={dir}>

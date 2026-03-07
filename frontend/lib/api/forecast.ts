@@ -70,5 +70,12 @@ export async function getForecastCurrent(tenantId: string): Promise<ForecastResu
     await new Promise(resolve => setTimeout(resolve, 500));
     return getMockForecastResult(tenantId);
   }
-  return ingestionApi.get<ForecastResult>(`/tenants/${tenantId}/forecast/current`);
+  
+  try {
+    return await ingestionApi.get<ForecastResult>(`/tenants/${tenantId}/forecast/current`);
+  } catch (error) {
+    console.warn("Failed to fetch forecast from backend, using mock data:", error);
+    // Fallback to mock data when backend is unavailable
+    return getMockForecastResult(tenantId);
+  }
 }

@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -12,12 +13,13 @@ import (
 )
 
 type RouterDeps struct {
-	Validator *auth.Validator
-	Users     domain.UserRepository
-	AuditRepo domain.AuditLogRepository
-	Tenants   *TenantHandler
-	Members   *MemberHandler
-	Audit     *AuditHandler
+	Validator   *auth.Validator
+	Users       domain.UserRepository
+	Memberships domain.MembershipRepository
+	AuditRepo   domain.AuditLogRepository
+	Tenants     *TenantHandler
+	Members     *MemberHandler
+	Audit       *AuditHandler
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -51,6 +53,10 @@ func NewRouter(deps RouterDeps) http.Handler {
 			r.With(middleware.RequirePermission(auth.PermTenantCreate)).Post("/", deps.Tenants.Create)
 
 			r.Route("/{tenantID}", func(r chi.Router) {
+				r.Use(middleware.TenantFromRouteParam("tenantID"))
+				r.Use(middleware.RequireTenantMembership(deps.Memberships))
+				r.Use(middleware.TenantRateLimit(100, time.Minute))
+
 				r.Get("/", deps.Tenants.GetByID)
 
 				// Members sub-resource
@@ -66,6 +72,8 @@ func NewRouter(deps RouterDeps) http.Handler {
 		// Audit logs (requires tenant context)
 		r.Route("/audit-logs", func(r chi.Router) {
 			r.Use(middleware.RequireTenant)
+			r.Use(middleware.RequireTenantMembership(deps.Memberships))
+			r.Use(middleware.TenantRateLimit(100, time.Minute))
 			r.With(middleware.RequirePermission(auth.PermAuditRead)).Get("/", deps.Audit.ListByTenant)
 		})
 	})

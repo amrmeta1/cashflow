@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -59,17 +60,26 @@ func run() error {
 	defer pool.Close()
 	log.Info().Str("host", cfg.Database.Host).Int("port", cfg.Database.Port).Msg("connected to database")
 
-	// Connect to RabbitMQ
-	rmqConn, rmqCh, err := mq.Connect(cfg.RabbitMQ)
-	if err != nil {
-		return fmt.Errorf("connecting to rabbitmq: %w", err)
-	}
-	defer rmqConn.Close()
-	defer rmqCh.Close()
-	log.Info().Str("url", cfg.RabbitMQ.URL).Msg("connected to rabbitmq")
+	// Connect to RabbitMQ (optional)
+	var rmqConn *amqp.Connection
+	var rmqCh *amqp.Channel
+	var publisher *mq.Publisher
 
-	// Create publisher
-	publisher := mq.NewPublisher(rmqCh, cfg.RabbitMQ.PublishRetries)
+	if cfg.RabbitMQ.URL != "" {
+		var err error
+		rmqConn, rmqCh, err = mq.Connect(cfg.RabbitMQ)
+		if err != nil {
+			return fmt.Errorf("connecting to rabbitmq: %w", err)
+		}
+		defer rmqConn.Close()
+		defer rmqCh.Close()
+		publisher = mq.NewPublisher(rmqCh, cfg.RabbitMQ.PublishRetries)
+		log.Info().Str("url", cfg.RabbitMQ.URL).Msg("connected to rabbitmq")
+	} else {
+		log.Warn().Msg("rabbitmq disabled - no URL configured")
+	}
+
+	_ = publisher // available for usecases that need to publish messages
 
 	// Init Keycloak JWKS client + JWT validator
 	jwksClient := auth.NewJWKSClient(
@@ -81,6 +91,7 @@ func run() error {
 
 	// Init repositories
 	userRepo := db.NewUserRepo(pool)
+	membershipRepo := db.NewMembershipRepo(pool)
 	auditRepo := db.NewAuditLogRepo(pool)
 	bankAccountRepo := db.NewBankAccountRepo(pool)
 	rawTxnRepo := db.NewRawBankTransactionRepo(pool)
@@ -108,55 +119,62 @@ func run() error {
 
 	// Build router
 	router := httpAdapter.NewIngestionRouter(httpAdapter.IngestionRouterDeps{
-		Validator: jwtValidator,
-		Users:     userRepo,
-		AuditRepo: auditRepo,
-		Ingestion: ingestionHandler,
-		Analysis:  analysisHandler,
-		Forecast:  forecastHandler,
+		Validator:   jwtValidator,
+		Users:       userRepo,
+		Memberships: membershipRepo,
+		AuditRepo:   auditRepo,
+		Ingestion:   ingestionHandler,
+		Analysis:    analysisHandler,
+		Forecast:    forecastHandler,
 	})
 
-	// Start command consumer (background goroutine)
-	consumerCh, err := rmqConn.Channel()
-	if err != nil {
-		return fmt.Errorf("opening consumer channel: %w", err)
-	}
-	defer consumerCh.Close()
-
-	if err := consumerCh.Qos(cfg.RabbitMQ.PrefetchCount, 0, false); err != nil {
-		return fmt.Errorf("setting consumer QoS: %w", err)
-	}
-
-	commandHandler := mq.NewIngestionCommandHandler(mq.IngestionWorkerDeps{
-		Jobs:        jobRepo,
-		Idempotency: idempotencyRepo,
-		Bank:        integrations.NewStubBankProvider(),
-		Accounting:  integrations.NewStubAccountingProvider(),
-	})
-
-	consumer := mq.NewConsumer(consumerCh, mq.QueueCommandsIngestion, commandHandler)
-	go func() {
-		if err := consumer.Start(ctx); err != nil {
-			log.Error().Err(err).Msg("command consumer error")
+	// Start command consumer (background goroutine) - only if RabbitMQ is enabled
+	if rmqConn != nil {
+		consumerCh, err := rmqConn.Channel()
+		if err != nil {
+			return fmt.Errorf("opening consumer channel: %w", err)
 		}
-	}()
+		defer consumerCh.Close()
 
-	// Start analysis consumer (runs analysis on analysis.requested events)
-	analysisCh, err := rmqConn.Channel()
-	if err != nil {
-		return fmt.Errorf("opening analysis consumer channel: %w", err)
-	}
-	defer analysisCh.Close()
-	if err := analysisCh.Qos(cfg.RabbitMQ.PrefetchCount, 0, false); err != nil {
-		return fmt.Errorf("setting analysis consumer QoS: %w", err)
-	}
-	analysisMsgHandler := worker.NewAnalysisMessageHandler(analysisUC, publisher)
-	analysisConsumer := mq.NewConsumer(analysisCh, mq.QueueAnalysisRequested, analysisMsgHandler)
-	go func() {
-		if err := analysisConsumer.Start(ctx); err != nil {
-			log.Error().Err(err).Msg("analysis consumer error")
+		if err := consumerCh.Qos(cfg.RabbitMQ.PrefetchCount, 0, false); err != nil {
+			return fmt.Errorf("setting consumer QoS: %w", err)
 		}
-	}()
+
+		commandHandler := mq.NewIngestionCommandHandler(mq.IngestionWorkerDeps{
+			Jobs:        jobRepo,
+			Idempotency: idempotencyRepo,
+			Bank:        integrations.NewStubBankProvider(),
+			Accounting:  integrations.NewStubAccountingProvider(),
+		})
+
+		consumer := mq.NewConsumer(consumerCh, mq.QueueCommandsIngestion, commandHandler)
+		go func() {
+			if err := consumer.Start(ctx); err != nil {
+				log.Error().Err(err).Msg("command consumer error")
+			}
+		}()
+		log.Info().Msg("rabbitmq consumer started")
+	}
+
+	// Start analysis consumer (runs analysis on analysis.requested events) - only if RabbitMQ is enabled
+	if rmqConn != nil {
+		analysisCh, err := rmqConn.Channel()
+		if err != nil {
+			return fmt.Errorf("opening analysis consumer channel: %w", err)
+		}
+		defer analysisCh.Close()
+		if err := analysisCh.Qos(cfg.RabbitMQ.PrefetchCount, 0, false); err != nil {
+			return fmt.Errorf("setting analysis consumer QoS: %w", err)
+		}
+		analysisMsgHandler := worker.NewAnalysisMessageHandler(analysisUC, publisher)
+		analysisConsumer := mq.NewConsumer(analysisCh, mq.QueueAnalysisRequested, analysisMsgHandler)
+		go func() {
+			if err := analysisConsumer.Start(ctx); err != nil {
+				log.Error().Err(err).Msg("analysis consumer error")
+			}
+		}()
+		log.Info().Msg("analysis consumer started")
+	}
 
 	// Start HTTP server
 	srv := &http.Server{

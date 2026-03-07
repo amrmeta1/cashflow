@@ -1,0 +1,119 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: me-south-1
+  TERRAFORM_VERSION: 1.5.0
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to AWS ECS
+    runs-on: ubuntu-latest
+    environment: dev
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push tenant-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./infra/docker/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/cashflow/tenant-service:latest
+            ${{ steps.login-ecr.outputs.registry }}/cashflow/tenant-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push ingestion-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./infra/docker/Dockerfile.ingestion
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/cashflow/ingestion-service:latest
+            ${{ steps.login-ecr.outputs.registry }}/cashflow/ingestion-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init
+        working-directory: ./infra/terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./infra/terraform
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ./infra/terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Update ECS Services
+        run: |
+          aws ecs update-service \
+            --cluster cashflow-dev-cluster \
+            --service cashflow-dev-tenant \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+          
+          aws ecs update-service \
+            --cluster cashflow-dev-cluster \
+            --service cashflow-dev-ingestion \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for services to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster cashflow-dev-cluster \
+            --services cashflow-dev-tenant cashflow-dev-ingestion \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Get deployment info
+        id: deployment-info
+        working-directory: ./infra/terraform
+        run: |
+          echo "alb_url=$(terraform output -raw alb_url)" >> $GITHUB_OUTPUT
+          echo "tenant_endpoint=$(terraform output -raw tenant_service_endpoint)" >> $GITHUB_OUTPUT
+
+      - name: Health check
+        run: |
+          curl -f ${{ steps.deployment-info.outputs.alb_url }}/healthz || exit 1
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Successful! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Load Balancer**: ${{ steps.deployment-info.outputs.alb_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tenant Service**: ${{ steps.deployment-info.outputs.tenant_endpoint }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region**: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

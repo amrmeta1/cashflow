@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,49 +10,48 @@ import { useI18n } from "@/lib/i18n/context";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface ChatResponse {
+  answer?: string;
+  response?: string;
+}
+
 export function TreasuryChat() {
   const { locale, dir } = useI18n();
   const isAr = locale === "ar";
   
   const [question, setQuestion] = useState("");
-  const [loading, setLoading] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   
   const answerRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = async () => {
-    if (!question.trim() || loading) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
+  const chatMutation = useMutation<ChatResponse, Error, string>({
+    mutationFn: async (question: string) => {
       const response = await fetch('/api/v1/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: question.trim() })
+        body: JSON.stringify({ question })
       });
       
       if (!response.ok) {
         throw new Error('Failed to get answer');
       }
       
-      const data = await response.json();
-      setAnswer(data.answer || data.response);
-      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setAnswer(data.answer || data.response || null);
       // Auto-scroll to answer
       setTimeout(() => {
         answerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 100);
-    } catch (err) {
-      setError(isAr 
-        ? "حدث خطأ. حاول مرة أخرى."
-        : "An error occurred. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
+    },
+    retry: 1,
+    retryDelay: 1000,
+  });
+
+  const handleSend = () => {
+    if (!question.trim() || chatMutation.isPending) return;
+    chatMutation.mutate(question.trim());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -82,7 +82,7 @@ export function TreasuryChat() {
             placeholder={isAr 
               ? "مثال: لماذا ارتفع معدل الحرق هذا الشهر؟"
               : "Example: Why did burn rate increase this month?"}
-            disabled={loading}
+            disabled={chatMutation.isPending}
             dir={dir}
             className={cn(
               "resize-none min-h-[100px]",
@@ -90,19 +90,21 @@ export function TreasuryChat() {
             )}
           />
           
-          {error && (
+          {chatMutation.isError && (
             <p className="text-sm text-rose-600">
-              {error}
+              {isAr 
+                ? "حدث خطأ. حاول مرة أخرى."
+                : "An error occurred. Please try again."}
             </p>
           )}
         </div>
 
         <Button 
           onClick={handleSend}
-          disabled={!question.trim() || loading}
+          disabled={!question.trim() || chatMutation.isPending}
           className="w-full sm:w-auto"
         >
-          {loading ? (
+          {chatMutation.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="ms-2">{isAr ? "جاري الإرسال..." : "Sending..."}</span>

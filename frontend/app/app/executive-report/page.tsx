@@ -539,8 +539,8 @@ export default function ExecutiveReportPage() {
           </p>
           <p>
             {isAr
-              ? "للاستفسارات، تواصل مع treasury@tadfuq.ai"
-              : "For questions, contact treasury@tadfuq.ai"}
+              ? "للاستفسارات، تواصل مع treasury@TadFuq.ai"
+              : "For questions, contact treasury@TadFuq.ai"}
           </p>
           <p className="text-muted-foreground/60 pt-1">
             {isAr ? "صفحة ١ من ١" : "Page 1 of 1"}

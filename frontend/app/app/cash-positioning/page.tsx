@@ -5,7 +5,7 @@
  * نفس التخطيط (لوحة يسرى + تفاصيل حساب + معاملات) مع بيانات الـ API.
  */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Sparkles, ChevronDown, Search, AlertTriangle, Info, RefreshCw, FileImage, FileDown,
@@ -261,29 +261,29 @@ export default function CashPositioningPage() {
   const [exporting, setExporting] = useState(false);
   const [txDisplayLimit, setTxDisplayLimit] = useState(200);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     todayQuery.refetch();
     yesterdayQuery.refetch();
     historyQuery.refetch();
-  };
+  }, [todayQuery, yesterdayQuery, historyQuery]);
 
-  const handleExportPNG = async () => {
+  const handleExportPNG = useCallback(async () => {
     setExporting(true);
     try {
       await exportElementAsPNG(CHART_EXPORT_ID, `cash-position-${new Date().toISOString().slice(0, 10)}`);
     } finally {
       setExporting(false);
     }
-  };
+  }, []);
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = useCallback(async () => {
     setExporting(true);
     try {
       await exportElementAsPDF(CHART_EXPORT_ID, `cash-position-${new Date().toISOString().slice(0, 10)}`);
     } finally {
       setExporting(false);
     }
-  };
+  }, []);
 
   const netChangeVsYesterday = useMemo(() => {
     if (cashLoading || yesterdayQuery.isLoading || yesterdayQuery.totalBalance == null) return null;

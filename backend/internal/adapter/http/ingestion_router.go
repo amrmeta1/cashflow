@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -13,12 +14,13 @@ import (
 
 // IngestionRouterDeps holds dependencies for the ingestion service router.
 type IngestionRouterDeps struct {
-	Validator *auth.Validator
-	Users     domain.UserRepository
-	AuditRepo domain.AuditLogRepository
-	Ingestion *IngestionHandler
-	Analysis  *AnalysisHandler
-	Forecast  *ForecastHandler
+	Validator   *auth.Validator
+	Users       domain.UserRepository
+	Memberships domain.MembershipRepository
+	AuditRepo   domain.AuditLogRepository
+	Ingestion   *IngestionHandler
+	Analysis    *AnalysisHandler
+	Forecast    *ForecastHandler
 }
 
 // NewIngestionRouter builds the chi router for the ingestion service.
@@ -46,6 +48,10 @@ func NewIngestionRouter(deps IngestionRouterDeps) http.Handler {
 		r.Use(middleware.ProvisionUser(deps.Users))
 
 		r.Route("/tenants/{tenantID}", func(r chi.Router) {
+			r.Use(middleware.TenantFromRouteParam("tenantID"))
+			r.Use(middleware.RequireTenantMembership(deps.Memberships))
+			r.Use(middleware.TenantRateLimit(100, time.Minute))
+
 			// CSV import
 			r.Post("/imports/bank-csv", deps.Ingestion.ImportBankCSV)
 

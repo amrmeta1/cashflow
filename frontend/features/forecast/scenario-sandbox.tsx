@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { cn, formatDate } from "@/lib/utils";
-import type { SimulationParams } from "./use-forecast-simulation";
+import type { SimulationParams } from "./use-forecast-simulation.ts";
 
 interface ScenarioSandboxProps {
   params: SimulationParams;

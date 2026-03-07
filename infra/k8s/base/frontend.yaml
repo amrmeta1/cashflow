@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: 747253121951.dkr.ecr.us-east-1.amazonaws.com/cashflow/frontend:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXTAUTH_URL
+          value: "http://app.tadfuq.ai"
+        - name: NEXTAUTH_SECRET
+          value: "your-secret-key-change-in-production-12345678"
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://tenant.api.tadfuq.ai"
+        - name: NODE_ENV
+          value: "development"
+        - name: NEXT_TELEMETRY_DISABLED
+          value: "1"
+        - name: NODE_OPTIONS
+          value: "--max-old-space-size=2048"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP

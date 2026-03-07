@@ -1,0 +1,30 @@
+# AWS Configuration
+aws_region = "me-south-1" # Bahrain - closest to GCC
+
+# Environment
+environment  = "dev"
+project_name = "cashflow"
+
+# Database
+db_instance_class     = "db.t4g.micro"
+db_allocated_storage  = 20
+
+# ECS Resources
+tenant_service_cpu      = 512
+tenant_service_memory   = 1024
+ingestion_service_cpu   = 512
+ingestion_service_memory = 1024
+desired_count           = 1
+
+# Networking
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = ["me-south-1a", "me-south-1b"]
+
+# Domain & DNS Configuration (Optional)
+# Uncomment and configure if you want to use a custom domain
+# domain_name          = "api.cashflow.example.com"  # Your domain name
+# create_hosted_zone   = true                         # Set to true if you want AWS to manage DNS
+# create_api_subdomain = true                         # Create api.yourdomain.com subdomain
+
+# Keycloak (if deploying on ECS)
+keycloak_admin_password = "change-me-in-production"

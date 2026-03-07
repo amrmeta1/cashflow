@@ -30,7 +30,7 @@ export function StatsSection() {
               <p className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-neon">
                 {stat.value}
               </p>
-              <p className="mt-2 text-sm md:text-base text-zinc-600 font-medium">
+              <p className="mt-2 text-sm md:text-base text-zinc-700 font-medium">
                 {isAr ? stat.labelAr : stat.labelEn}
               </p>
             </motion.div>

@@ -66,7 +66,7 @@ export function LandingFooter() {
             <h3 className="font-semibold text-xs text-zinc-400 uppercase tracking-wider mb-4">
               {isAr ? "تواصل" : "Contact"}
             </h3>
-            <p className="text-sm text-zinc-500">hello@tadfuq.ai</p>
+            <p className="text-sm text-zinc-500">hello@TadFuq.ai</p>
           </div>
         </div>
         <div className="mt-12 pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">

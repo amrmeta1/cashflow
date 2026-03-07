@@ -66,6 +66,9 @@ import { Amt } from "@/components/ui/amt";
 import { exportToCSV, formatForExport } from "@/lib/export";
 import { DashboardRightSidebar } from "@/components/dashboard/DashboardRightSidebar";
 import { RechartsTooltipGlass } from "@/components/charts/ChartTooltipGlass";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { BankAccountsList } from "@/components/dashboard/BankAccountsList";
+import { UpcomingPayments } from "@/components/dashboard/UpcomingPayments";
 import { chartGridProps, chartXAxisProps, chartTooltipCursor } from "@/components/charts/chartStyles";
 import type { CashEvolutionPoint } from "@/components/dashboard/CashEvolutionChart";
 import { cn } from "@/lib/utils";
@@ -312,11 +315,11 @@ export default function DashboardPage() {
   const [dateToInput, setDateToInput] = useState(() => toDateOnly(defaultDateRange().to));
   const [showAllAccounts, setShowAllAccounts] = useState(false);
 
-  const applyDateFilter = () => {
+  const applyDateFilter = useCallback(() => {
     const from = parseDateOnly(dateFromInput);
     const to = parseDateOnly(dateToInput);
     if (from <= to) setDateRange({ from, to });
-  };
+  }, [dateFromInput, dateToInput]);
 
   const TOTAL_BANK = cashTotal ?? 0;
   const bankAccountsFromApi = (cashData?.accounts ?? []).map((a) => ({
@@ -335,7 +338,7 @@ export default function DashboardPage() {
     balance: Math.round(row.balance * forecastScale),
   }));
 
-  const handleExportCSV = () => {
+  const handleExportCSV = useCallback(() => {
     const kpiData = [
       { [isAr ? "المؤشر" : "Metric"]: isAr ? "إجمالي الرصيد" : "Total Balance", [isAr ? "القيمة" : "Value"]: formatForExport(TOTAL_BANK, locale), [isAr ? "العملة" : "Currency"]: curr, [isAr ? "التغيير" : "Change"]: "+2.1%" },
       { [isAr ? "المؤشر" : "Metric"]: isAr ? "إجمالي الإيرادات" : "Total Revenue", [isAr ? "القيمة" : "Value"]: formatForExport(112000, locale), [isAr ? "العملة" : "Currency"]: curr, [isAr ? "التغيير" : "Change"]: "+12%" },
@@ -344,7 +347,7 @@ export default function DashboardPage() {
       ...bankAccountsFromApi.map((acc) => ({ [isAr ? "المؤشر" : "Metric"]: isAr ? acc.nameAr : acc.nameEn, [isAr ? "القيمة" : "Value"]: formatForExport(acc.balance, locale), [isAr ? "العملة" : "Currency"]: curr, [isAr ? "التغيير" : "Change"]: `${(acc.share * 100).toFixed(0)}%` })),
     ];
     exportToCSV(kpiData, `dashboard-report-${new Date().toISOString().slice(0, 10)}`);
-  };
+  }, [isAr, TOTAL_BANK, locale, curr, bankAccountsFromApi]);
 
   const [sections, setSections] = useState<SectionVisibility>(DEFAULT_VISIBILITY);
   useEffect(() => { setSections(loadVisibility()); }, []);
@@ -354,6 +357,10 @@ export default function DashboardPage() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
+  }, []);
+
+  const toggleShowAllAccounts = useCallback(() => {
+    setShowAllAccounts((prev) => !prev);
   }, []);
 
   const forecastData = FORECAST_7D.map((d_) => ({ ...d_, day: isAr ? d_.dayAr : d_.day }));
@@ -497,73 +504,36 @@ export default function DashboardPage() {
       )}>
         {sections.kpi && (
           <>
-            {/* Total Balance */}
-            <Card className="shadow-sm border-border/50 overflow-hidden bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-950/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 rounded-full bg-zinc-400 shrink-0" />
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalBalance}</p>
-                </div>
-                <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                  {fmt(mockKpis.balance)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1.5">{d.across3Accounts}</p>
-                <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                  <ArrowUpRight className="h-3 w-3" />+2.1%
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Revenue */}
-            <Card className="shadow-sm border-border/50 overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalRevenue}</p>
-                </div>
-                <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                  {curr} {mockKpis.revenue.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1.5">{d.thisMonth}</p>
-                <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                  <ArrowUpRight className="h-3 w-3" />+12%
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Expenses */}
-            <Card className="shadow-sm border-border/50 overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.totalExpenses}</p>
-                </div>
-                <p suppressHydrationWarning className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                  {curr} {mockKpis.expenses.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1.5">{d.topBurn}</p>
-                <div className="text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                  <ArrowDownRight className="h-3 w-3" />-3.1%
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Runway */}
-            <Card className="shadow-sm border-border/50 overflow-hidden bg-muted/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-none">{d.runway}</p>
-                </div>
-                <p className="text-xl font-bold tabular-nums tracking-tight leading-none">
-                  {mockKpis.runwayMonths} {d.runwayMonths}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1.5">{d.basedOnBurnRate}</p>
-                <div className="text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-md text-xs font-medium w-fit mt-2 flex items-center gap-1">
-                  <ArrowUpRight className="h-3 w-3" />{d.stable}
-                </div>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label={d.totalBalance}
+              value={fmt(mockKpis.balance)}
+              subtitle={d.across3Accounts}
+              change={{ value: "+2.1%", trend: "up", icon: ArrowUpRight }}
+              dotColor="bg-zinc-400"
+              gradient="bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-950/20"
+            />
+            <KpiCard
+              label={d.totalRevenue}
+              value={`${curr} ${mockKpis.revenue.toLocaleString()}`}
+              subtitle={d.thisMonth}
+              change={{ value: "+12%", trend: "up", icon: ArrowUpRight }}
+              dotColor="bg-emerald-500"
+            />
+            <KpiCard
+              label={d.totalExpenses}
+              value={`${curr} ${mockKpis.expenses.toLocaleString()}`}
+              subtitle={d.topBurn}
+              change={{ value: "-3.1%", trend: "down", icon: ArrowDownRight }}
+              dotColor="bg-rose-500"
+            />
+            <KpiCard
+              label={d.runway}
+              value={`${mockKpis.runwayMonths} ${d.runwayMonths}`}
+              subtitle={d.basedOnBurnRate}
+              change={{ value: d.stable, trend: "neutral", icon: ArrowUpRight }}
+              dotColor="bg-indigo-500"
+              gradient="bg-muted/20"
+            />
           </>
         )}
 
@@ -777,87 +747,28 @@ export default function DashboardPage() {
 
         {/* Bank Accounts */}
         {sections.banks && (
-          <Card className="shadow-sm border-border/50">
-            <CardHeader className="pb-2 pt-5 px-5">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm font-semibold">{d.bankBalances}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="px-5 pb-5 space-y-4">
-              {visibleAccounts.map((acc) => (
-                <div key={acc.nameEn}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted shrink-0">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                      <span className="text-sm font-medium">{isAr ? acc.nameAr : acc.nameEn}</span>
-                    </div>
-                    <span suppressHydrationWarning className="text-sm font-semibold tabular-nums ms-auto ps-4">
-                      {curr} {acc.balance.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${(acc.share * 100).toFixed(0)}%` }} />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">{(acc.share * 100).toFixed(0)}% {d.ofTotal}</p>
-                </div>
-              ))}
-              {hasMore && (
-                <div className="flex items-center justify-between pt-1 border-t border-border/50">
-                  <button type="button" onClick={() => setShowAllAccounts(!showAllAccounts)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium">
-                    {showAllAccounts ? <><ChevronUp className="h-3 w-3" />{d.showLess}</> : <><ChevronDown className="h-3 w-3" />{d.showAll} ({bankAccountsFromApi.length})</>}
-                  </button>
-                  <Link href="/app/cash-positioning" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
-                    {t.nav.cashPositioning} →
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <BankAccountsList
+            accounts={bankAccountsFromApi}
+            currency={curr}
+            isAr={isAr}
+            title={d.bankBalances}
+            showAllLabel={d.showAll}
+            showLessLabel={d.showLess}
+            ofTotalLabel={d.ofTotal}
+            cashPositioningLabel={t.nav.cashPositioning}
+          />
         )}
 
         {/* Upcoming Payments */}
         {sections.upcoming && (
-          <Card className="shadow-sm border-border/50">
-            <CardHeader className="pb-2 pt-5 px-5">
-              <div className="flex items-center gap-2">
-                <Timer className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm font-semibold">{d.upcomingPayments}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="px-5 pb-5 space-y-3">
-              {UPCOMING.map((pmt) => (
-                <div key={pmt.id} className={cn(
-                  "flex items-center gap-3 rounded-lg border px-3 py-2.5",
-                  pmt.severity === "danger" ? "border-rose-200 bg-rose-50/40 dark:border-rose-900/50 dark:bg-rose-950/10" :
-                  pmt.severity === "warning" ? "border-amber-200 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/10" :
-                  "border-border/50"
-                )}>
-                  <div className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                    pmt.severity === "danger" ? "bg-rose-100 dark:bg-rose-900/40" :
-                    pmt.severity === "warning" ? "bg-amber-100 dark:bg-amber-900/40" :
-                    "bg-muted"
-                  )}>
-                    {pmt.severity === "danger" ? <AlertTriangle className="h-4 w-4 text-rose-500" /> :
-                     pmt.severity === "warning" ? <Clock className="h-4 w-4 text-amber-500" /> :
-                     <Calendar className="h-4 w-4 text-muted-foreground" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{isAr ? pmt.descAr : pmt.descEn}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {d.dueIn} {pmt.daysUntil} {d.days}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold tabular-nums text-rose-600 dark:text-rose-400 shrink-0">
-                    -{curr} {pmt.amount.toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <UpcomingPayments
+            payments={UPCOMING}
+            currency={curr}
+            isAr={isAr}
+            title={d.upcomingPayments}
+            dueInLabel={d.dueIn}
+            daysLabel={d.days}
+          />
         )}
       </div>
 

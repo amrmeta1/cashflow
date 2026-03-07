@@ -129,50 +129,41 @@ export function ActiveCasesPanel({
   }
 
   return (
-    <Card className="shadow-sm border-border/50">
+    <Card className="shadow-sm border-border/50 h-full flex flex-col">
       <CardHeader className="pb-3 pt-5 px-5">
         <CardTitle className="text-base font-semibold">
           {isAr ? "التنبيهات النشطة" : "Active Alerts"}
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-5 pb-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <CardContent className="px-5 pb-5 flex-1">
+        <div className="grid gap-3 grid-cols-1 lg:grid-cols-2 h-full content-start">
           {cases.map((c) => (
             <Card
               key={c.id}
               className="cursor-pointer border-border/50 hover:border-indigo-500/50 transition-colors"
               onClick={() => onSelectCase?.(c)}
             >
-              <CardHeader className="pb-2 pt-4 px-4">
+              <CardHeader className="pb-2 pt-3 px-3">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-sm font-medium leading-snug">
+                  <CardTitle className="text-xs font-medium leading-tight line-clamp-2">
                     {isAr ? c.titleAr : c.title}
                   </CardTitle>
-                  <Badge variant={severityVariant(c.severity)} className="text-[10px] shrink-0">
+                  <Badge variant={severityVariant(c.severity)} className="text-[9px] shrink-0 h-4 px-1.5">
                     {severityLabel(c.severity)}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2 text-xs">
-                <p className="font-medium tabular-nums" dir="ltr">
-                  {fmt(c.impactAmount)}
+              <CardContent className="px-3 pb-3 space-y-1.5 text-[11px]">
+                <p className="text-muted-foreground line-clamp-2 leading-tight">
+                  {isAr ? c.recommendationAr : c.recommendation}
                 </p>
-                <p className="text-muted-foreground">
-                  {isAr ? "الموعد:" : "Due:"} {formatDue(c.dueDate)}
-                </p>
-                <ul className="space-y-0.5 text-muted-foreground">
-                  {c.drivers.slice(0, 2).map((d, i) => (
-                    <li key={i}>{d.label}</li>
-                  ))}
-                </ul>
-                <p className="text-foreground/90 pt-1">{isAr ? c.recommendationAr : c.recommendation}</p>
-                <div
-                  className="pt-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <div className="flex items-center justify-between pt-0.5">
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatDue(c.dueDate)}
+                  </span>
                   <DriversPopover drivers={c.drivers}>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs">
-                      {isAr ? "لماذا؟" : "Why?"}
+                    <Button variant="ghost" size="sm" className="h-5 text-[10px] px-2 -mr-2">
+                      {isAr ? "تفاصيل" : "Details"}
                     </Button>
                   </DriversPopover>
                 </div>

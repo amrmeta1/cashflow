@@ -4,7 +4,7 @@
 # CashFlow.ai – Monorepo Makefile
 # ──────────────────────────────────────────────
 
-DOCKER_COMPOSE = docker compose -f deploy/docker/docker-compose.yml
+DOCKER_COMPOSE = docker compose -f infra/docker/docker-compose.yml
 MIGRATE_DSN    = postgres://cashflow:cashflow@localhost:5433/cashflow?sslmode=disable
 BINARY_TENANT  = bin/tenant-service
 BINARY_INGEST  = bin/ingestion-service
@@ -20,8 +20,8 @@ up: ## Start all containers (postgres, keycloak, nats, rabbitmq, services)
 down: ## Stop and remove all containers
 	$(DOCKER_COMPOSE) down -v
 
-up-deps: ## Start infra only (postgres, keycloak, nats, rabbitmq)
-	$(DOCKER_COMPOSE) up -d postgres keycloak nats rabbitmq
+up-deps: ## Start infra only (postgres, nats, rabbitmq)
+	$(DOCKER_COMPOSE) up -d postgres nats rabbitmq
 
 run-all: ## Start full stack (Docker infra + migrate + frontend). Frontend uses DEV_SKIP_AUTH for no-login.
 	@chmod +x scripts/run-all.sh 2>/dev/null; ./scripts/run-all.sh
@@ -86,15 +86,5 @@ docker-build-ingestion: ## Build ingestion-service Docker image
 
 docker-build-all: docker-build docker-build-ingestion ## Build all Docker images
 
-# ── Keycloak helpers ─────────────────────────
-
-keycloak-token: ## Get a Keycloak access token for admin@demo.com (dev only)
-	@curl -s -X POST http://localhost:8180/realms/cashflow/protocol/openid-connect/token \
-		-d "grant_type=password" \
-		-d "client_id=cashflow-api" \
-		-d "client_secret=cashflow-api-secret" \
-		-d "username=admin@demo.com" \
-		-d "password=admin123" | jq -r '.access_token'
-
-test-analysis: ## Test analysis API (token + create tenant + run analysis + get latest). Run tenant + ingestion locally first.
+test-analysis: ## Test analysis API. Run tenant + ingestion locally first.
 	@./scripts/test-analysis.sh

@@ -15,7 +15,6 @@ export default function MarketingLayout({
     <div dir={dir} className="min-h-screen flex flex-col bg-landing-darker">
       <MarketingNavbar />
       <main className="flex-1">{children}</main>
-      {/* Footer only when child does not render its own (e.g. pricing, security) */}
       <LandingFooter />
     </div>
   );

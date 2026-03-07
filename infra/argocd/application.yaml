@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cashflow
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/amrmeta1/cashflow.git
+    targetRevision: HEAD
+    path: infra/helm/cashflow
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: imageRegistry.url
+          value: "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com"
+        - name: global.environment
+          value: "dev"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cashflow-dev
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  revisionHistoryLimit: 10

@@ -3,37 +3,79 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/lib/i18n/context";
 import { DriversPopover } from "./DriversPopover";
-
-const MOCK_BRIEF = {
-  risks: [
-    { id: "r1", textAr: "فاتورة #INV-2847 متأخرة ٧ أيام — ٢٨,٠٠٠ ر.س", textEn: "Invoice #INV-2847 overdue 7 days — 28,000 SAR" },
-    { id: "r2", textAr: "مصروف المرافق أعلى ٤٠٪ من المتوسط", textEn: "Utility spend 40% above 3-month average" },
-  ],
-  opportunities: [
-    { id: "o1", textAr: "تحويل ٢٠٠,٠٠٠ ر.س إلى وديعة عالية العائد", textEn: "Move 200,000 to high-yield deposit" },
-    { id: "o2", textAr: "إيرادات خدمات متوقعة اليوم ٢٣,٠٠٠ ر.س", textEn: "Expected service revenue today 23,000 SAR" },
-  ],
-  recommendations: [
-    { id: "rec1", textAr: "متابعة الفاتورة المتأخرة وإرسال تذكير واتساب", textEn: "Follow up on overdue invoice and send WhatsApp reminder" },
-    { id: "rec2", textAr: "محاكاة تحويل جزء من الرصيد إلى وديعة", textEn: "Simulate moving part of balance to deposit" },
-    { id: "rec3", textAr: "إقرار ضريبة القيمة المضافة مستحق خلال ١٢ يوماً", textEn: "VAT filing due in 12 days — documents ready" },
-  ],
-  confidence: 82,
-  dataQuality: 91,
-  lastUpdated: "2026-02-24T08:00:00",
-};
+import type { DailyBriefData } from "@/lib/api/daily-brief-api";
 
 interface AIDailyBriefProps {
+  data?: DailyBriefData | null;
+  loading?: boolean;
   onOpenCases?: () => void;
   onOpenSimulation?: () => void;
 }
 
-export function AIDailyBrief({ onOpenCases, onOpenSimulation }: AIDailyBriefProps) {
+export function AIDailyBrief({ data, loading = false, onOpenCases, onOpenSimulation }: AIDailyBriefProps) {
   const { locale } = useI18n();
   const isAr = locale === "ar";
-  const lastUpdatedFormatted = new Date(MOCK_BRIEF.lastUpdated).toLocaleString(
+
+  if (loading) {
+    return (
+      <Card className="border-s-4 border-s-indigo-500 shadow-sm">
+        <CardHeader className="pb-3 pt-5 px-5">
+          <CardTitle className="text-lg font-semibold">
+            {isAr ? "ملخص الخزينة اليومي" : "Daily Treasury Brief"}
+          </CardTitle>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 space-y-5">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Card className="border-s-4 border-s-indigo-500 shadow-sm">
+        <CardHeader className="pb-3 pt-5 px-5">
+          <CardTitle className="text-lg font-semibold">
+            {isAr ? "ملخص الخزينة اليومي" : "Daily Treasury Brief"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5">
+          <div className="py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              {isAr
+                ? "لا توجد بيانات كافية لإنشاء الملخص اليومي."
+                : "Insufficient data to generate daily brief."}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const lastUpdatedFormatted = new Date(data.lastUpdated).toLocaleString(
     isAr ? "ar-SA" : "en-GB",
     { dateStyle: "short", timeStyle: "short" }
   );
@@ -46,69 +88,89 @@ export function AIDailyBrief({ onOpenCases, onOpenSimulation }: AIDailyBriefProp
         </CardTitle>
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <Badge variant="secondary" className="text-xs">
-            {isAr ? "الثقة" : "Confidence"}: {MOCK_BRIEF.confidence}%
+            {isAr ? "الثقة" : "Confidence"}: {data.confidence}%
           </Badge>
           <Badge variant="outline" className="text-xs">
-            {isAr ? "جودة البيانات" : "Data Quality"}: {MOCK_BRIEF.dataQuality}%
+            {isAr ? "جودة البيانات" : "Data Quality"}: {data.dataQuality}%
           </Badge>
           <span className="text-xs text-muted-foreground">
             {isAr ? "آخر تحديث:" : "Last updated:"} {lastUpdatedFormatted}
           </span>
         </div>
       </CardHeader>
-      <CardContent className="px-5 pb-5 space-y-5">
+      <CardContent className="px-5 pb-5 space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <section>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              {isAr ? "المخاطر" : "Risks"}
+            </h3>
+            <ul className="space-y-1 text-xs">
+              {data.risks.length > 0 ? (
+                data.risks.map((r) => (
+                  <li key={r.id} className="flex items-start gap-1.5">
+                    <span className="h-1 w-1 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                    <span className="leading-relaxed">{isAr ? r.textAr : r.textEn}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-muted-foreground italic text-xs">
+                  {isAr ? "لا توجد مخاطر حالياً" : "No risks identified"}
+                </li>
+              )}
+            </ul>
+          </section>
+          <section>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              {isAr ? "الفرص" : "Opportunities"}
+            </h3>
+            <ul className="space-y-1 text-xs">
+              {data.opportunities.length > 0 ? (
+                data.opportunities.map((o) => (
+                  <li key={o.id} className="flex items-start gap-1.5">
+                    <span className="h-1 w-1 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
+                    <span className="leading-relaxed">{isAr ? o.textAr : o.textEn}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-muted-foreground italic text-xs">
+                  {isAr ? "لا توجد فرص حالياً" : "No opportunities identified"}
+                </li>
+              )}
+            </ul>
+          </section>
+        </div>
         <section>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            {isAr ? "المخاطر" : "Risks"}
-          </h3>
-          <ul className="space-y-1.5 text-sm">
-            {MOCK_BRIEF.risks.map((r) => (
-              <li key={r.id} className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" />
-                {isAr ? r.textAr : r.textEn}
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            {isAr ? "الفرص" : "Opportunities"}
-          </h3>
-          <ul className="space-y-1.5 text-sm">
-            {MOCK_BRIEF.opportunities.map((o) => (
-              <li key={o.id} className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                {isAr ? o.textAr : o.textEn}
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             {isAr ? "التوصيات" : "Recommendations"}
           </h3>
-          <ul className="space-y-2 text-sm">
-            {MOCK_BRIEF.recommendations.map((rec) => (
-              <li key={rec.id} className="flex items-start justify-between gap-2">
-                <span>{isAr ? rec.textAr : rec.textEn}</span>
-                <DriversPopover>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs shrink-0">
-                    {isAr ? "لماذا؟" : "Why?"}
-                  </Button>
-                </DriversPopover>
+          <ul className="space-y-1.5 text-xs">
+            {data.recommendations.length > 0 ? (
+              data.recommendations.map((rec) => (
+                <li key={rec.id} className="flex items-start justify-between gap-2">
+                  <span className="leading-relaxed">{isAr ? rec.textAr : rec.textEn}</span>
+                  <DriversPopover>
+                    <Button variant="ghost" size="sm" className="h-6 text-[10px] shrink-0 px-2">
+                      {isAr ? "لماذا؟" : "Why?"}
+                    </Button>
+                  </DriversPopover>
+                </li>
+              ))
+            ) : (
+              <li className="text-muted-foreground italic text-xs">
+                {isAr ? "لا توجد توصيات حالياً" : "No recommendations available"}
               </li>
-            ))}
+            )}
           </ul>
         </section>
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
-          <Button size="sm" variant="outline" className="text-xs" onClick={onOpenCases}>
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
+          <Button size="sm" variant="outline" className="text-[11px] h-7" onClick={onOpenCases}>
             {isAr ? "عرض الحالات" : "View Cases"}
           </Button>
-          <Button size="sm" variant="outline" className="text-xs" onClick={onOpenSimulation}>
+          <Button size="sm" variant="outline" className="text-[11px] h-7" onClick={onOpenSimulation}>
             {isAr ? "تشغيل محاكاة" : "Run Simulation"}
           </Button>
-          <Button size="sm" variant="outline" className="text-xs">
-            {isAr ? "تصدير التقرير الأسبوعي" : "Export Weekly Report"}
+          <Button size="sm" variant="outline" className="text-[11px] h-7">
+            {isAr ? "تصدير التقرير" : "Export Report"}
           </Button>
         </div>
       </CardContent>

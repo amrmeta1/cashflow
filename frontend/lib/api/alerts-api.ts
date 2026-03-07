@@ -75,11 +75,14 @@ export async function getActiveAlerts(tenantId: string): Promise<Alert[]> {
     const result = getMockAlerts();
     return result.data.filter((a) => a.status === "open") as Alert[];
   }
+  
   try {
     const response = await tenantApi.get<{ data: Alert[] }>(`/tenants/${tenantId}/alerts/active`);
     return response.data;
   } catch (error) {
-    const response = await listAlerts(tenantId, { status: 'open' });
-    return response.data;
+    console.warn("Failed to fetch active alerts from backend, using mock data:", error);
+    // Fallback to mock data when backend is unavailable
+    const result = getMockAlerts();
+    return result.data.filter((a) => a.status === "open") as Alert[];
   }
 }

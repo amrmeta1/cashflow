@@ -85,7 +85,7 @@ export function SimulationModal({ open, onClose, onApply }: SimulationModalProps
   const { locale } = useI18n();
   const isAr = locale === "ar";
   const tenantId = getTenantId();
-  const { data: forecastData, loading: forecastLoading } = useForecast(tenantId);
+  const { data: forecastData, isLoading: forecastLoading } = useForecast(tenantId);
 
   const [phase, setPhase] = useState<Phase>("initial");
   const [simType, setSimType] = useState<SimulationType>("delay");

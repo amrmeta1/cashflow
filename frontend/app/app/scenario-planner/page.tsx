@@ -179,7 +179,7 @@ export default function ScenarioPlannerPage() {
   const { fmt, fmtAxis, selected: currCode } = useCurrency();
   const isAr = locale === "ar";
   const tenantId = getTenantId();
-  const { data: forecastData, loading: forecastLoading } = useForecast(tenantId);
+  const { data: forecastData, isLoading: forecastLoading } = useForecast(tenantId);
 
   const forecastChartBase = useMemo(() => 
     forecastData?.forecast.map((d) => d.baseline) ?? [], 

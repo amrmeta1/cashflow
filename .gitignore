@@ -4,6 +4,8 @@ bin/
 *.dll
 *.so
 *.dylib
+tenant-service
+ingestion-service
 
 # Test
 *.test
@@ -15,6 +17,12 @@ coverage.out
 *.swp
 *.swo
 *~
+
+# AI Tools
+.claude/
+.cursor/
+.claire/
+.windsurf/
 
 # OS
 .DS_Store
@@ -33,6 +41,22 @@ Thumbs.db
 *.tfstate.backup
 *.tfvars
 .terraform.lock.hcl
+*.log
+*.bak
+tfplan
 
 # Docker volumes
 pgdata/
+
+# Node
+node_modules/
+.npm-cache/
+npm-debug.log*
+
+# Logs
+*.log
+logs/
+
+# Test data
+*.csv
+test-data/

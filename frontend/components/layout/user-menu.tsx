@@ -1,7 +1,6 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
-import { LogOut, Settings, CreditCard, User, ChevronDown } from "lucide-react";
+import { Settings, CreditCard, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";
 import {
@@ -14,15 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function UserMenu() {
-  const { data: session } = useSession();
   const { locale } = useI18n();
   const router = useRouter();
   const isAr = locale === "ar";
 
-  if (!session?.user) return null;
-
-  const displayName = session.user.name ?? session.user.email ?? "User";
-  const initials = displayName.charAt(0).toUpperCase();
+  const displayName = isAr ? "مستخدم تجريبي" : "Demo User";
+  const email = "demo@TadFuq.ai";
+  const initials = "D";
 
   return (
     <DropdownMenu>
@@ -33,7 +30,7 @@ export function UserMenu() {
           </div>
           <div className="hidden md:flex flex-col items-start leading-tight">
             <span className="text-xs font-medium max-w-[100px] truncate">{displayName}</span>
-            <span className="text-[10px] text-muted-foreground max-w-[100px] truncate">{session.user.email}</span>
+            <span className="text-[10px] text-muted-foreground max-w-[100px] truncate">{email}</span>
           </div>
           <ChevronDown className="h-3 w-3 text-muted-foreground hidden md:block" />
         </button>
@@ -42,7 +39,7 @@ export function UserMenu() {
         <DropdownMenuLabel className="font-normal py-2">
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-semibold truncate">{displayName}</span>
-            <span className="text-xs text-muted-foreground truncate">{session.user.email}</span>
+            <span className="text-xs text-muted-foreground truncate">{email}</span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -59,14 +56,6 @@ export function UserMenu() {
         >
           <CreditCard className="h-3.5 w-3.5" />
           {isAr ? "الفوترة" : "Billing"}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-          onClick={() => signOut({ callbackUrl: "/login" })}
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          {isAr ? "تسجيل الخروج" : "Sign out"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

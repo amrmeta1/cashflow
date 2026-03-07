@@ -16,12 +16,19 @@ const config: Config = {
     },
     extend: {
       colors: {
-        neon: "#00FFAA",
-        gold: "#FFD700",
-        "landing-dark": "#0A2540",
-        "landing-darker": "#111111",
+        // Primary brand colors - enterprise-grade
+        neon: "#00E5A0", // Softer, more professional green
+        gold: "#F5A623", // Warmer, less bright gold
+        
+        // Background colors - Kyriba-inspired
+        "landing-dark": "#0B1A2D", // Deep navy blue (Kyriba style)
+        "landing-darker": "#050A14", // Almost black with blue tint
         "landing-cream": "#F8F7F4",
-        "landing-gray": "#1F2937",
+        "landing-gray": "#1A2332", // Dark blue-gray
+        
+        // Additional enterprise colors
+        "enterprise-blue": "#1E3A5F", // Professional blue
+        "enterprise-teal": "#00B4A6", // Accent teal
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

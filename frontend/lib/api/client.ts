@@ -1,4 +1,3 @@
-import { getSession } from "next-auth/react";
 import { generateRequestId } from "@/lib/utils";
 import type { ApiError } from "./types";
 
@@ -20,13 +19,9 @@ class ApiClient {
   }
 
   private async headers(): Promise<HeadersInit> {
-    const session = await getSession();
     const h: HeadersInit = {
       "x-request-id": generateRequestId(),
     };
-    if (session?.accessToken) {
-      h["Authorization"] = `Bearer ${session.accessToken}`;
-    }
     if (currentTenantId) {
       h["X-Tenant-ID"] = currentTenantId;
     }

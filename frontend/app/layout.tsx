@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description: "Agentic financial management for GCC SMEs",
 };
 
+// Force dynamic rendering to avoid Context Provider issues
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+export const revalidate = 0;
+
 export default function RootLayout({
   children,
 }: {

@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { resolvePermissions } from "@/lib/auth/permissions";
+// Authentication removed - permissions not needed
 import type { Role } from "@/lib/api/types";
 
 const ROLES: { role: Role; description: string }[] = [
@@ -42,7 +42,7 @@ export default function RolesPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {ROLES.map(({ role, description }) => {
-          const permissions = resolvePermissions([role]);
+          const permissions: string[] = []; // No permissions needed without auth
           return (
             <Card key={role}>
               <CardHeader className="pb-3">

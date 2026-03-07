@@ -1,0 +1,129 @@
+# Default values for CashFlow.ai
+
+# Global settings
+global:
+  environment: dev
+  region: us-east-1
+  domain: TadFuq.ai
+
+# Image registry
+imageRegistry:
+  url: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+  pullPolicy: Always
+
+# Frontend
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cashflow/frontend
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  env:
+    NEXT_PUBLIC_APP_NAME: "CashFlow.ai"
+    NEXT_PUBLIC_API_URL: "https://api.TadFuq.ai"
+    NEXT_PUBLIC_TENANT_API_URL: "https://api.TadFuq.ai/api/tenant"
+    NEXT_PUBLIC_INGESTION_API_URL: "https://api.TadFuq.ai/api/ingestion"
+    NEXTAUTH_URL: "https://app.TadFuq.ai"
+
+# Tenant Service
+tenantService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cashflow/tenant-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  env:
+    SERVER_PORT: "8080"
+    DB_PORT: "5432"
+    DB_NAME: "cashflow"
+    DB_USER: "cashflow"
+    DB_SSLMODE: "require"
+    AUTH_DEV_MODE: "false"
+
+# Ingestion Service
+ingestionService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cashflow/ingestion-service
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8081
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  env:
+    SERVER_PORT: "8081"
+    DB_PORT: "5432"
+    DB_NAME: "cashflow"
+    DB_USER: "cashflow"
+    DB_SSLMODE: "require"
+    AUTH_DEV_MODE: "false"
+
+# Ingress
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+  hosts:
+    - host: app.TadFuq.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 3000
+    - host: api.TadFuq.ai
+      paths:
+        - path: /api/tenant
+          pathType: Prefix
+          service: tenant-service
+          port: 8080
+        - path: /api/ingestion
+          pathType: Prefix
+          service: ingestion-service
+          port: 8081
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Database (RDS connection info from secrets)
+database:
+  secretName: db-credentials
+
+# Cognito (authentication)
+cognito:
+  secretName: cognito-credentials

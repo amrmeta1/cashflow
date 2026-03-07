@@ -1,34 +1,18 @@
 "use client";
 
-import { useMe } from "@/lib/hooks/use-me";
-import {
-  hasPermission,
-  hasAnyPermission,
-  type Permission,
-} from "@/lib/auth/permissions";
-import {
-  canAccessRoute,
-  filterNavByRoles,
-  hasRole,
-  hasAnyRole,
-  isAdminOrOwner,
-  isFinanceAndAbove,
-} from "@/lib/auth/rbac";
-import type { Role } from "@/lib/api/types";
-
+// Simplified permissions hook - no authentication required
 export function usePermissions() {
-  const { roles, isLoading } = useMe();
-
+  // Grant all permissions since there's no authentication
   return {
-    roles,
-    isLoading,
-    can: (permission: Permission) => hasPermission(roles, permission),
-    canAny: (permissions: Permission[]) => hasAnyPermission(roles, permissions),
-    hasRole: (role: Role) => hasRole(roles, role),
-    hasAnyRole: (check: Role[]) => hasAnyRole(roles, check),
-    isAdminOrOwner: () => isAdminOrOwner(roles),
-    isFinanceAndAbove: () => isFinanceAndAbove(roles),
-    canAccessRoute: (href: string) => canAccessRoute(roles, href),
-    visibleNav: () => filterNavByRoles(roles),
+    roles: ["admin"],
+    isLoading: false,
+    can: (permission: string) => true,
+    canAny: (permissions: string[]) => true,
+    hasRole: (role: string) => true,
+    hasAnyRole: (check: string[]) => true,
+    isAdminOrOwner: () => true,
+    isFinanceAndAbove: () => true,
+    canAccessRoute: (href: string) => true,
+    visibleNav: () => true,
   };
 }

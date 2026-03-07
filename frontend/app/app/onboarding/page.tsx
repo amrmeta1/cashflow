@@ -34,7 +34,6 @@ import {
   type CountryCode,
   type CompanySize,
 } from "@/contexts/CompanyContext";
-import { useSession } from "next-auth/react";
 import { createTenant } from "@/lib/api/tenant-api";
 import { useTenant } from "@/lib/hooks/use-tenant";
 
@@ -181,7 +180,6 @@ function slugify(name: string): string {
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
   const { locale, dir } = useI18n();
   const { updateCompanyProfile, setCountry } = useCompany();
   const { setCurrentTenant, setMemberships } = useTenant();
@@ -252,31 +250,35 @@ export default function OnboardingPage() {
       const name = companyName.trim();
       const slug = slugify(name);
 
-      if (status === "authenticated" && session?.user) {
-        try {
-          const { data: tenant } = await createTenant({
-            name,
-            slug,
-            plan: "starter",
-            metadata: { industry, companySize, countryCode, userRole, useCases },
-          });
-          const newMembership = {
-            id: `m-${tenant.id}`,
-            tenant_id: tenant.id,
-            user_id: "",
-            role: "accountant_readonly" as const,
-            status: "active" as const,
-            created_at: tenant.created_at,
-            updated_at: tenant.updated_at,
-            tenant,
-          };
-          setMemberships([newMembership]);
-          setCurrentTenant(tenant);
-          setTenantCreatedOnServer(true);
-        } catch {
-          setBackendUnavailable(true);
-          // Backend not available or error: continue with localStorage only
-        }
+      // Save settings locally for demo mode
+      try {
+        const mockTenant = {
+          id: `tenant-${Date.now()}`,
+          name,
+          slug,
+          plan: "starter" as const,
+          status: "active" as const,
+          metadata: { industry, companySize, countryCode, userRole, useCases },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setCurrentTenant(mockTenant);
+        const membership = {
+          id: "m-1",
+          tenant_id: mockTenant.id,
+          user_id: "demo-user",
+          role: "owner" as const,
+          status: "active" as const,
+          created_at: mockTenant.created_at,
+          updated_at: mockTenant.updated_at,
+          tenant: mockTenant,
+        };
+        setMemberships([membership]);
+        setBackendUnavailable(false);
+        setTenantCreatedOnServer(false);
+      } catch (err) {
+        console.error("Failed to save settings:", err);
+        setBackendUnavailable(true);
       }
 
       setCountry(countryCode);
@@ -745,13 +747,9 @@ export default function OnboardingPage() {
 
                 <div className="space-y-2">
                   <h2 className="text-lg font-bold leading-snug">
-                    {status === "authenticated"
-                      ? (isAr
-                          ? `جاري ربط مساحة العمل بحسابك — ${companyName || "شركتك"}...`
-                          : `Linking your workspace — ${companyName || "your company"}...`)
-                      : (isAr
-                          ? `جاري بناء العقل المالي لـ${companyName || "شركتك"}...`
-                          : `Building the financial brain for ${companyName || "your company"}...`)}
+                    {isAr
+                      ? `جاري بناء العقل المالي لـ${companyName || "شركتك"}...`
+                      : `Building the financial brain for ${companyName || "your company"}...`}
                   </h2>
                   <AnimatePresence mode="wait">
                     <motion.p
@@ -806,14 +804,14 @@ export default function OnboardingPage() {
                   <p className="text-sm text-muted-foreground">
                     {isAr ? "مساحة عملك جاهزة تماماً" : "Your workspace is all set up"}
                   </p>
-                  {tenantCreatedOnServer && (
+                  {!backendUnavailable && (
                     <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                      {isAr ? "تم ربط مساحة العمل بحسابك" : "Workspace linked to your account"}
+                      {isAr ? "تم حفظ الإعدادات بنجاح" : "Settings saved successfully"}
                     </p>
                   )}
-                  {backendUnavailable && status === "authenticated" && (
+                  {backendUnavailable && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">
-                      {isAr ? "تم حفظ الإعدادات محلياً — يمكنك المزامنة لاحقاً" : "Saved locally — you can sync later when the server is available"}
+                      {isAr ? "تم حفظ الإعدادات محلياً" : "Settings saved locally"}
                     </p>
                   )}
                 </div>

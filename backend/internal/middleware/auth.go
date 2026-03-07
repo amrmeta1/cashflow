@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
@@ -94,6 +95,73 @@ func RequireTenant(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// TenantFromRouteParam extracts tenant UUID from a route param (e.g. {tenantID})
+// and stores it in context. If a tenant_id already exists in context and it does
+// not match the route tenant ID, the request is rejected.
+func TenantFromRouteParam(param string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tenantParam := chi.URLParam(r, param)
+			if tenantParam == "" {
+				writeError(w, http.StatusForbidden, "tenant id is required in route")
+				return
+			}
+
+			routeTenantID, err := uuid.Parse(tenantParam)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid tenant id in route")
+				return
+			}
+
+			ctx := r.Context()
+			if existingTenantID, ok := domain.TenantIDFromContext(ctx); ok && existingTenantID != routeTenantID {
+				writeError(w, http.StatusForbidden, "tenant mismatch")
+				return
+			}
+
+			ctx = domain.ContextWithTenantID(ctx, routeTenantID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RequireTenantMembership ensures the authenticated user belongs to the tenant in context.
+func RequireTenantMembership(memberships domain.MembershipRepository) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			tenantID, ok := domain.TenantIDFromContext(ctx)
+			if !ok {
+				writeError(w, http.StatusForbidden, "tenant context required")
+				return
+			}
+
+			userID, ok := domain.UserIDFromContext(ctx)
+			if !ok {
+				writeError(w, http.StatusUnauthorized, "user context required")
+				return
+			}
+
+			if _, err := memberships.GetByTenantAndUser(ctx, tenantID, userID); err != nil {
+				if err == domain.ErrNotFound {
+					writeError(w, http.StatusForbidden, "user is not a member of this tenant")
+					return
+				}
+				log.Error().
+					Err(err).
+					Str("tenant_id", tenantID.String()).
+					Str("user_id", userID.String()).
+					Msg("failed to validate tenant membership")
+				writeError(w, http.StatusInternalServerError, "failed to validate tenant membership")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // RequirePermission checks that the authenticated user's Keycloak roles

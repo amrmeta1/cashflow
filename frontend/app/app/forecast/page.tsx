@@ -190,7 +190,7 @@ export default function ForecastPage() {
   } = useScenario();
   const isAr = locale === "ar";
   const tenantId = getTenantId();
-  const { data: forecastData, loading: forecastLoading, error: forecastError } = useForecast(tenantId);
+  const { data: forecastData, isLoading: forecastLoading, error: forecastError } = useForecast(tenantId);
 
   const [visibleScenarioIds, setVisibleScenarioIds] = useState<Set<string>>(new Set());
   const prevScenariosLengthRef = useRef(0);

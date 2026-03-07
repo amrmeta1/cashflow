@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -55,15 +57,24 @@ func run() error {
 	defer pool.Close()
 	log.Info().Str("host", cfg.Database.Host).Int("port", cfg.Database.Port).Msg("connected to database")
 
-	// Connect to NATS JetStream
-	nc, js, err := events.Connect(ctx, cfg.NATS)
-	if err != nil {
-		return fmt.Errorf("connecting to nats: %w", err)
-	}
-	defer nc.Close()
+	// Connect to NATS JetStream (optional)
+	var nc *nats.Conn
+	var js jetstream.JetStream
+	var publisher *events.Publisher
 
-	// Create event publisher
-	publisher := events.NewPublisher(js)
+	if cfg.NATS.URL != "" {
+		var err error
+		nc, js, err = events.Connect(ctx, cfg.NATS)
+		if err != nil {
+			return fmt.Errorf("connecting to nats: %w", err)
+		}
+		defer nc.Close()
+		publisher = events.NewPublisher(js)
+		log.Info().Str("url", cfg.NATS.URL).Msg("connected to nats")
+	} else {
+		log.Warn().Msg("nats disabled - no URL configured")
+	}
+
 	_ = publisher // available for usecases that need to emit domain events
 	_ = js        // available for starting consumer workers
 
@@ -92,12 +103,13 @@ func run() error {
 
 	// Build router
 	router := httpAdapter.NewRouter(httpAdapter.RouterDeps{
-		Validator: jwtValidator,
-		Users:     userRepo,
-		AuditRepo: auditRepo,
-		Tenants:   tenantHandler,
-		Members:   memberHandler,
-		Audit:     auditHandler,
+		Validator:   jwtValidator,
+		Users:       userRepo,
+		Memberships: membershipRepo,
+		AuditRepo:   auditRepo,
+		Tenants:     tenantHandler,
+		Members:     memberHandler,
+		Audit:       auditHandler,
 	})
 
 	// Start HTTP server

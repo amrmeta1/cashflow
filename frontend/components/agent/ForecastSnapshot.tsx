@@ -27,12 +27,12 @@ function calculateTrend(current: number, week13: number): TrendType {
 }
 
 export function ForecastSnapshot({ tenantId }: ForecastSnapshotProps) {
-  const { data, loading } = useForecast(tenantId);
+  const { data, isLoading } = useForecast(tenantId);
   const { fmt } = useCurrency();
   const { locale } = useI18n();
   const isAr = locale === "ar";
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card className="shadow-sm border-border/50">
         <CardHeader className="pb-3 pt-5 px-5">
@@ -117,53 +117,53 @@ export function ForecastSnapshot({ tenantId }: ForecastSnapshotProps) {
   };
 
   return (
-    <Card className="shadow-sm border-border/50">
+    <Card className="shadow-sm border-border/50 h-full flex flex-col">
       <CardHeader className="pb-3 pt-5 px-5">
         <CardTitle className="text-base font-semibold">
           {isAr ? "نظرة عامة على ١٣ أسبوع" : "13-Week Cash Outlook"}
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs">
           {isAr 
             ? "ملخص تنفيذي للتوقعات النقدية"
             : "Executive summary of cash forecast"}
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-5 pb-5 space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+      <CardContent className="px-5 pb-5 space-y-3 flex-1">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               {isAr ? "الرصيد الحالي" : "Current Cash"}
             </p>
-            <p className="text-2xl font-bold tabular-nums tracking-tight">
+            <p className="text-xl font-bold tabular-nums tracking-tight">
               {fmt(currentCash)}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
-              {isAr ? "التوقع للأسبوع ١٣" : "Week 13 Projection"}
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              {isAr ? "التوقع للأسبوع ١٣" : "Week 13"}
             </p>
-            <p className="text-2xl font-bold tabular-nums tracking-tight">
+            <p className="text-xl font-bold tabular-nums tracking-tight">
               {fmt(week13)}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               {isAr ? "الاتجاه" : "Trend"}
             </p>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {(() => {
                 const TrendIcon = trendConfig[trend].icon;
                 return (
                   <>
                     <TrendIcon className={cn(
-                      "h-4 w-4",
+                      "h-3.5 w-3.5",
                       trend === "improving" && "text-emerald-700",
                       trend === "stable" && "text-slate-700",
                       trend === "declining" && "text-rose-700"
                     )} />
-                    <span className="text-sm font-medium">
+                    <span className="text-xs font-medium">
                       {trendConfig[trend].label}
                     </span>
                   </>
@@ -172,23 +172,23 @@ export function ForecastSnapshot({ tenantId }: ForecastSnapshotProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               {isAr ? "الثقة" : "Confidence"}
             </p>
-            <p className="text-2xl font-bold tabular-nums tracking-tight">
+            <p className="text-xl font-bold tabular-nums tracking-tight">
               {confidence}%
             </p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-border/50">
-          <div className="text-xs text-muted-foreground">
-            {isAr ? "آخر تحديث:" : "Last updated:"} {lastUpdated}
+        <div className="flex items-center justify-between pt-2 mt-auto border-t border-border/50">
+          <div className="text-[10px] text-muted-foreground">
+            {lastUpdated}
           </div>
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="ghost" size="sm" className="h-7 text-xs -mr-2" asChild>
             <Link href="/app/forecast" className="flex items-center gap-1">
-              {isAr ? "عرض التوقعات الكاملة" : "View Full Forecast"}
+              {isAr ? "التفاصيل" : "Details"}
               {isAr ? <ArrowLeft className="h-3 w-3" /> : <ArrowRight className="h-3 w-3" />}
             </Link>
           </Button>

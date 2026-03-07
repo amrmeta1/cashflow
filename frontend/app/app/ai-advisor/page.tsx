@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useCallback } from "react";
 import { useI18n } from "@/lib/i18n/context";
 import { useToast } from "@/components/ui/toast";
 import { useScenario } from "@/contexts/ScenarioContext";
@@ -10,11 +10,12 @@ import { TreasuryChat } from "@/components/agent/TreasuryChat";
 import { ActiveCasesPanel } from "@/components/agent/ActiveCasesPanel";
 import { CaseDrawer } from "@/components/agent/CaseDrawer";
 import { SimulationModal } from "@/components/agent/SimulationModal";
+import { ScenarioBanner } from "@/components/agent/ScenarioBanner";
 import type { AgentCase } from "@/components/agent/ActiveCasesPanel";
 import type { Scenario } from "@/contexts/ScenarioContext";
 import { getTenantId } from "@/lib/api/client";
-import { getActiveAlerts } from "@/lib/api/alerts-api";
-import type { Alert } from "@/lib/api/alerts-api";
+import { useActiveAlerts } from "@/lib/hooks/useActiveAlerts";
+import { useDailyBrief } from "@/lib/hooks/useDailyBrief";
 
 export default function AIAdvisorPage() {
   const { dir, locale } = useI18n();
@@ -23,84 +24,93 @@ export default function AIAdvisorPage() {
   const casesSectionRef = useRef<HTMLDivElement>(null);
   const [selectedCase, setSelectedCase] = useState<AgentCase | null>(null);
   const [simulationOpen, setSimulationOpen] = useState(false);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [alertsLoading, setAlertsLoading] = useState(true);
   const tenantId = getTenantId();
+  const isAr = locale === "ar";
 
-  useEffect(() => {
-    if (!tenantId) return;
-    
-    setAlertsLoading(true);
-    getActiveAlerts(tenantId)
-      .then(setAlerts)
-      .catch((err) => {
-        console.error("Failed to load alerts:", err);
-        setAlerts([]);
-      })
-      .finally(() => setAlertsLoading(false));
-  }, [tenantId]);
+  const { data: alerts = [], isLoading: alertsLoading } = useActiveAlerts(tenantId);
+  const { data: dailyBrief, isLoading: briefLoading } = useDailyBrief(tenantId);
 
-  const handleOpenCases = () => {
+  const handleOpenCases = useCallback(() => {
     casesSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
 
-  const handleApplyScenario = (scenario: Scenario) => {
-    const isAr = locale === "ar";
-    if (scenarios.length >= 3) {
+  const handleApplyScenario = useCallback(
+    (scenario: Scenario) => {
+      if (scenarios.length >= 3) {
+        toast({
+          title: isAr ? "الحد الأقصى للسيناريوهات" : "Maximum scenarios",
+          description: isAr
+            ? "يمكنك إضافة 3 سيناريوهات كحد أقصى. احذف واحداً للمتابعة."
+            : "You can add up to 3 scenarios. Remove one to continue.",
+          variant: "destructive",
+        });
+        return;
+      }
+      addScenario(scenario);
       toast({
-        title: isAr ? "الحد الأقصى للسيناريوهات" : "Maximum scenarios",
-        description: isAr ? "يمكنك إضافة 3 سيناريوهات كحد أقصى. احذف واحداً للمتابعة." : "You can add up to 3 scenarios. Remove one to continue.",
-        variant: "destructive",
+        title: isAr ? "تمت إضافة السيناريو" : "Scenario added",
+        description: isAr
+          ? `فرق السيولة: ${scenario.deltaCash >= 0 ? "+" : ""}${scenario.deltaCash.toLocaleString("en")} · ${scenario.riskLevel}`
+          : `Delta: ${scenario.deltaCash >= 0 ? "+" : ""}${scenario.deltaCash.toLocaleString("en")} · ${scenario.riskLevel}`,
+        variant: "success",
       });
-      return;
-    }
-    addScenario(scenario);
-    toast({
-      title: isAr ? "تمت إضافة السيناريو" : "Scenario added",
-      description: isAr
-        ? `فرق السيولة: ${scenario.deltaCash >= 0 ? "+" : ""}${scenario.deltaCash.toLocaleString("en")} · ${scenario.riskLevel}`
-        : `Delta: ${scenario.deltaCash >= 0 ? "+" : ""}${scenario.deltaCash.toLocaleString("en")} · ${scenario.riskLevel}`,
-      variant: "success",
-    });
-  };
+    },
+    [scenarios.length, addScenario, toast, isAr]
+  );
+
+  const handleSimulationOpen = useCallback(() => {
+    setSimulationOpen(true);
+  }, []);
+
+  const handleSimulationClose = useCallback(() => {
+    setSimulationOpen(false);
+  }, []);
+
+  const handleCaseClose = useCallback(() => {
+    setSelectedCase(null);
+  }, []);
+
+  const handleCaseSimulate = useCallback(() => {
+    setSelectedCase(null);
+    setSimulationOpen(true);
+  }, []);
 
   return (
     <div dir={dir} className="min-h-full w-full" data-page-content>
-      <div className="max-w-6xl w-full mx-auto px-4 py-8 md:px-6 md:py-10 flex flex-col gap-8">
-        {scenarios.length > 0 && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-2 text-sm text-muted-foreground">
-            {locale === "ar"
-              ? `${scenarios.length} سيناريو نشط${activeScenario ? ` · الأساس للمقارنة: فرق ${activeScenario.deltaCash >= 0 ? "+" : ""}${activeScenario.deltaCash.toLocaleString("en")} · ${activeScenario.riskLevel}` : ""}`
-              : `${scenarios.length} scenario(s) active${activeScenario ? ` · Primary: delta ${activeScenario.deltaCash >= 0 ? "+" : ""}${activeScenario.deltaCash.toLocaleString("en")} · ${activeScenario.riskLevel}` : ""}`}
-          </div>
-        )}
-        <AIDailyBrief
-          onOpenCases={handleOpenCases}
-          onOpenSimulation={() => setSimulationOpen(true)}
+      <div className="max-w-7xl w-full mx-auto px-6 py-8 flex flex-col gap-6">
+        <ScenarioBanner
+          scenarios={scenarios}
+          activeScenario={activeScenario}
+          locale={locale}
         />
-        <ForecastSnapshot tenantId={tenantId} />
-        <div ref={casesSectionRef}>
-          <ActiveCasesPanel
-            alerts={alerts}
-            loading={alertsLoading}
-            selectedCase={selectedCase}
-            onSelectCase={setSelectedCase}
-          />
+        <AIDailyBrief
+          data={dailyBrief}
+          loading={briefLoading}
+          onOpenCases={handleOpenCases}
+          onOpenSimulation={handleSimulationOpen}
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ForecastSnapshot tenantId={tenantId} />
+          <div ref={casesSectionRef}>
+            <ActiveCasesPanel
+              alerts={alerts}
+              loading={alertsLoading}
+              selectedCase={selectedCase}
+              onSelectCase={setSelectedCase}
+            />
+          </div>
         </div>
         <TreasuryChat />
       </div>
       <CaseDrawer
         open={!!selectedCase}
         case={selectedCase}
-        onClose={() => setSelectedCase(null)}
-        onSimulate={() => {
-          setSelectedCase(null);
-          setSimulationOpen(true);
-        }}
+        onClose={handleCaseClose}
+        onSimulate={handleCaseSimulate}
       />
       <SimulationModal
         open={simulationOpen}
-        onClose={() => setSimulationOpen(false)}
+        onClose={handleSimulationClose}
         onApply={handleApplyScenario}
       />
     </div>

@@ -38,7 +38,7 @@ export function MobileSidebar() {
           </SheetHeader>
 
           <SidebarNav
-            items={visibleNav()}
+            items={[]}
             collapsed={false}
             onNavigate={() => setOpen(false)}
           />

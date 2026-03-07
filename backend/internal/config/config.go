@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/kelseyhightower/envconfig"
 )
@@ -35,7 +36,7 @@ type DatabaseConfig struct {
 func (d DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		d.User, d.Password, d.Host, d.Port, d.Name, d.SSLMode,
+		url.QueryEscape(d.User), url.QueryEscape(d.Password), d.Host, d.Port, d.Name, d.SSLMode,
 	)
 }
 
@@ -53,18 +54,18 @@ type AuthConfig struct {
 }
 
 type NATSConfig struct {
-	URL            string `envconfig:"NATS_URL" default:"nats://localhost:4222"`
-	MaxReconnects  int    `envconfig:"NATS_MAX_RECONNECTS" default:"10"`
-	ReconnectWait  int    `envconfig:"NATS_RECONNECT_WAIT" default:"2"`   // seconds
-	MaxAckPending  int    `envconfig:"NATS_MAX_ACK_PENDING" default:"256"`
-	MaxDeliver     int    `envconfig:"NATS_MAX_DELIVER" default:"5"`      // retries before DLQ
-	AckWait        int    `envconfig:"NATS_ACK_WAIT" default:"30"`        // seconds
+	URL           string `envconfig:"NATS_URL" default:"nats://localhost:4222"`
+	MaxReconnects int    `envconfig:"NATS_MAX_RECONNECTS" default:"10"`
+	ReconnectWait int    `envconfig:"NATS_RECONNECT_WAIT" default:"2"` // seconds
+	MaxAckPending int    `envconfig:"NATS_MAX_ACK_PENDING" default:"256"`
+	MaxDeliver    int    `envconfig:"NATS_MAX_DELIVER" default:"5"` // retries before DLQ
+	AckWait       int    `envconfig:"NATS_ACK_WAIT" default:"30"`   // seconds
 }
 
 type OTELConfig struct {
-	Enabled      bool   `envconfig:"OTEL_ENABLED" default:"false"`
-	ExporterURL  string `envconfig:"OTEL_EXPORTER_OTLP_ENDPOINT" default:"http://localhost:4318"`
-	ServiceName  string `envconfig:"OTEL_SERVICE_NAME" default:"cashflow-tenant-service"`
+	Enabled     bool   `envconfig:"OTEL_ENABLED" default:"false"`
+	ExporterURL string `envconfig:"OTEL_EXPORTER_OTLP_ENDPOINT" default:"http://localhost:4318"`
+	ServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"cashflow-tenant-service"`
 }
 
 func Load() (*Config, error) {
