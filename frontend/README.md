@@ -7,7 +7,7 @@ Production-grade Next.js dashboard for CashFlow.ai — agentic financial managem
 - **Framework**: Next.js 14 (App Router) + TypeScript
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **Data Fetching**: TanStack Query (React Query)
-- **Auth**: Keycloak OIDC via NextAuth.js
+- **Auth**: Removed (previously used NextAuth.js)
 - **Charts**: Recharts
 - **Validation**: Zod
 - **i18n**: Arabic + English with full RTL support
@@ -31,27 +31,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Description | Default |
 |---|---|---|
-| `KEYCLOAK_ISSUER` | Keycloak realm URL | `http://localhost:8180/realms/cashflow` |
-| `KEYCLOAK_CLIENT_ID` | OIDC client ID | `cashflow-api` |
-| `KEYCLOAK_CLIENT_SECRET` | OIDC client secret | `cashflow-api-secret` |
-| `NEXTAUTH_URL` | NextAuth callback base URL | `http://localhost:3000` |
-| `NEXTAUTH_SECRET` | Session encryption secret | (generate a random string) |
-| `NEXT_PUBLIC_API_BASE_URL` | Tenant service API | `http://localhost:8080` |
-| `NEXT_PUBLIC_INGESTION_API_BASE_URL` | Ingestion service API | `http://localhost:8081` |
-| `NEXT_PUBLIC_ENABLE_MOCKS` | Enable mock data for dev | `true` |
+| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:8080` |
+| `NODE_ENV` | Environment | `development` |
+| `NEXT_TELEMETRY_DISABLED` | Disable Next.js telemetry | `1` |
 
-## Keycloak Setup
+> **⚠️ Note**: Authentication has been removed. All environment variables related to NextAuth and Keycloak are no longer needed.
 
-The frontend expects a Keycloak instance with:
-
-- **Realm**: `cashflow`
-- **Client**: `cashflow-api` (confidential, standard flow enabled)
-- **Redirect URIs**: `http://localhost:3000/*`
-- **Web Origins**: `http://localhost:3000`
-
-The realm is pre-configured in `deploy/keycloak/realm-export.json`.
-
-### Test Users
+### Optional Variables
 
 | Email | Password | Role |
 |---|---|---|
@@ -72,7 +58,6 @@ npm run dev
 ```
 
 Services:
-- **Keycloak**: http://localhost:8180
 - **Tenant API**: http://localhost:8080
 - **Ingestion API**: http://localhost:8081
 - **Frontend**: http://localhost:3000
@@ -89,11 +74,9 @@ frontend/
 │   │   ├── partners/           # Partner program
 │   │   └── demo/               # Demo request form
 │   ├── api/
-│   │   ├── auth/               # NextAuth API route
+│   │   ├── health/             # Health check endpoint
 │   │   └── leads/              # Demo lead capture API
-│   ├── login/                  # Keycloak login page
-│   ├── logout/                 # Logout handler
-│   └── app/                    # Protected app routes
+│   └── app/                    # App routes (no auth required)
 │       ├── dashboard/          # Cash dashboard with charts
 │       ├── forecast/           # 13-week/30-day forecast + scenarios
 │       ├── alerts/             # Alert inbox + detail view
@@ -120,9 +103,8 @@ frontend/
 ## Features
 
 ### Core Platform
-- **Keycloak OIDC**: Redirect login, JWT token refresh, secure session via httpOnly cookie
-- **Multi-tenancy**: Tenant switcher in navbar, X-Tenant-ID header on all API calls, cache reset on switch
-- **RBAC**: Permission matrix mirroring backend, UI elements hidden/disabled per role
+- **No Authentication**: All features accessible without login
+- **Multi-tenancy**: X-Tenant-ID header on API calls
 - **i18n**: Arabic/English toggle with full RTL layout support, GCC currency formatting (SAR/AED/QAR)
 - **Observability**: `x-request-id` header on every API call for trace correlation
 - **Mock Data**: Dev-mode mock data behind `NEXT_PUBLIC_ENABLE_MOCKS` flag

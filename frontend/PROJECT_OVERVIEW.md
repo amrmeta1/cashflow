@@ -37,8 +37,8 @@ Tadfuq is a comprehensive AI-powered treasury and financial management platform 
 - **Migrations:** SQL migrations
 
 ### Infrastructure
-- **Containerization:** Docker
-- **Authentication:** Keycloak
+- **Containerization:** Docker & Kubernetes
+- **Authentication:** Removed
 - **API:** RESTful APIs (OpenAPI spec)
 
 ---
