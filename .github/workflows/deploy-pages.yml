@@ -39,12 +39,14 @@ jobs:
 
       - name: Build with Next.js
         working-directory: ./frontend
-        run: npm run build
+        run: |
+          npm run build
+          touch .next/standalone/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./frontend/out
+          path: ./frontend/.next/standalone
 
   deploy:
     name: Deploy to GitHub Pages
