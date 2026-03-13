@@ -7,7 +7,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/rag-service/internal/domain/insights"
+	"tadfuq/rag-service/internal/domain/insights/types"
 )
 
 // ─── Thresholds (change here; do not scatter magic numbers) ─────────────────
@@ -39,10 +39,10 @@ const (
 //  5. Scan the 13-week forecast for any week where ending_balance < 0 (CRITICAL)
 //     or ending_balance < avgWeeklyOutflow * MinReserveMultiple (HIGH).
 func AnalyzeLiquidityRisk(
-	txns []insights.BankTransaction,
-	forecast []insights.ForecastEntry,
+	txns []types.BankTransaction,
+	forecast []types.ForecastEntry,
 	asOf time.Time,
-) []insights.Risk {
+) []types.Risk {
 
 	if len(txns) == 0 {
 		return nil
@@ -63,38 +63,38 @@ func AnalyzeLiquidityRisk(
 	// ── 3. Runway ────────────────────────────────────────────────────────────
 	runwayWeeks := currentBalance / avgWeeklyBurn
 
-	var risks []insights.Risk
+	var risks []types.Risk
 
 	// ── 4. Runway-based risk ─────────────────────────────────────────────────
-	var sev insights.AlertSeverity
+	var sev types.AlertSeverity
 	var msg string
 
 	switch {
 	case runwayWeeks < RunwayCriticalWeeks:
-		sev = insights.SeverityCritical
+		sev = types.SeverityCritical
 		msg = fmt.Sprintf(
 			"Critical: only %.1f weeks of runway remaining at current burn rate of %.0f/week.",
 			runwayWeeks, avgWeeklyBurn,
 		)
 	case runwayWeeks < RunwayHighWeeks:
-		sev = insights.SeverityHigh
+		sev = types.SeverityHigh
 		msg = fmt.Sprintf(
 			"%.1f weeks of runway at %.0f/week average burn. Action required within 30 days.",
 			runwayWeeks, avgWeeklyBurn,
 		)
 	case runwayWeeks < RunwayMediumWeeks:
-		sev = insights.SeverityMedium
+		sev = types.SeverityMedium
 		msg = fmt.Sprintf(
 			"%.1f weeks of runway. Monitor cash position closely over the next quarter.",
 			runwayWeeks,
 		)
 	default:
-		sev = insights.SeverityInfo
+		sev = types.SeverityInfo
 		msg = fmt.Sprintf("%.1f weeks of runway — within healthy range.", runwayWeeks)
 	}
 
-	risks = append(risks, insights.Risk{
-		ID:       insights.RiskLiquidityRunway,
+	risks = append(risks, types.Risk{
+		ID:       types.RiskLiquidityRunway,
 		Severity: sev,
 		Title:    "Cash Runway",
 		Message:  msg,
@@ -110,9 +110,9 @@ func AnalyzeLiquidityRisk(
 	minReserve := avgWeeklyBurn * MinReserveMultiple
 	for _, fw := range forecast {
 		if fw.ForecastedEndingBalance < 0 {
-			risks = append(risks, insights.Risk{
-				ID:       insights.RiskNegativeForecast,
-				Severity: insights.SeverityCritical,
+			risks = append(risks, types.Risk{
+				ID:       types.RiskNegativeForecast,
+				Severity: types.SeverityCritical,
 				Title:    fmt.Sprintf("Negative Balance Forecast — Week %d", fw.WeekNumber),
 				Message: fmt.Sprintf(
 					"Forecast week %d (%s) projects a negative ending balance of %.0f.",
@@ -127,9 +127,9 @@ func AnalyzeLiquidityRisk(
 				},
 			})
 		} else if fw.ForecastedEndingBalance < minReserve {
-			risks = append(risks, insights.Risk{
-				ID:       insights.RiskNegativeForecast,
-				Severity: insights.SeverityHigh,
+			risks = append(risks, types.Risk{
+				ID:       types.RiskNegativeForecast,
+				Severity: types.SeverityHigh,
 				Title:    fmt.Sprintf("Low Reserve Forecast — Week %d", fw.WeekNumber),
 				Message: fmt.Sprintf(
 					"Week %d ending balance (%.0f) falls below the 2-week reserve of %.0f.",
@@ -152,7 +152,7 @@ func AnalyzeLiquidityRisk(
 
 // latestBalance returns the balance_after of the most recent transaction
 // (txns assumed sorted by date DESC).
-func latestBalance(txns []insights.BankTransaction) float64 {
+func latestBalance(txns []types.BankTransaction) float64 {
 	if len(txns) == 0 {
 		return 0
 	}
@@ -166,10 +166,10 @@ func weekKey(t time.Time) string {
 }
 
 // weeklyOutflowMap groups debit amounts by ISO week between [from, to].
-func weeklyOutflowMap(txns []insights.BankTransaction, from, to time.Time) map[string]float64 {
+func weeklyOutflowMap(txns []types.BankTransaction, from, to time.Time) map[string]float64 {
 	m := make(map[string]float64)
 	for _, t := range txns {
-		if t.Type == insights.Debit && !t.Date.Before(from) && !t.Date.After(to) {
+		if t.Type == types.Debit && !t.Date.Before(from) && !t.Date.After(to) {
 			m[weekKey(t.Date)] += t.Amount
 		}
 	}
@@ -177,10 +177,10 @@ func weeklyOutflowMap(txns []insights.BankTransaction, from, to time.Time) map[s
 }
 
 // weeklyInflowMap groups credit amounts by ISO week between [from, to].
-func weeklyInflowMap(txns []insights.BankTransaction, from, to time.Time) map[string]float64 {
+func weeklyInflowMap(txns []types.BankTransaction, from, to time.Time) map[string]float64 {
 	m := make(map[string]float64)
 	for _, t := range txns {
-		if t.Type == insights.Credit && !t.Date.Before(from) && !t.Date.After(to) {
+		if t.Type == types.Credit && !t.Date.Before(from) && !t.Date.After(to) {
 			m[weekKey(t.Date)] += t.Amount
 		}
 	}

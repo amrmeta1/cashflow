@@ -6,8 +6,10 @@ import (
 	"sort"
 	"time"
 
+	"tadfuq/rag-service/internal/domain/insights/rules"
+	"tadfuq/rag-service/internal/domain/insights/types"
+
 	"github.com/google/uuid"
-	"github.com/rag-service/internal/domain/insights/rules"
 )
 
 // lookbackDays is the default history window for transaction queries.
@@ -47,19 +49,23 @@ func (s *service) Run(ctx context.Context, tenantID uuid.UUID) (*InsightResult, 
 	activeAlerts, _ := s.repo.GetActiveAlerts(ctx, tenantID)
 
 	// ── 2. Run all five rules (pure functions — no I/O) ───────────────────────
+	// Convert to types package format for rules
+	typesTxns := convertToTypesTransactions(txns)
+	typesForecast := convertToTypesForecast(forecast)
+
 	var allRisks []Risk
 
 	// Rule 1: Liquidity Risk
 	allRisks = append(allRisks,
-		rules.AnalyzeLiquidityRisk(txns, forecast, asOf)...)
+		convertTypesRisks(rules.AnalyzeLiquidityRisk(typesTxns, typesForecast, asOf))...)
 
 	// Rule 2: Burn Spike
 	allRisks = append(allRisks,
-		rules.AnalyzeBurnSpike(txns, asOf)...)
+		convertTypesRisks(rules.AnalyzeBurnSpike(typesTxns, asOf))...)
 
 	// Rule 3: Revenue Drop
 	allRisks = append(allRisks,
-		rules.AnalyzeRevenueDrop(txns, forecast, asOf)...)
+		convertTypesRisks(rules.AnalyzeRevenueDrop(typesTxns, typesForecast, asOf))...)
 
 	// Active alerts → convert to Risk objects (pass-through, no duplication logic)
 	for _, a := range activeAlerts {
@@ -73,11 +79,11 @@ func (s *service) Run(ctx context.Context, tenantID uuid.UUID) (*InsightResult, 
 	}
 
 	// Rule 4: Receivables Opportunity
-	opps := rules.AnalyzeReceivables(txns, asOf)
+	opps := convertTypesOpportunities(rules.AnalyzeReceivables(typesTxns, asOf))
 
 	// Rule 5: Vendor Payment Optimisation
 	opps = append(opps,
-		rules.AnalyzeVendorPayments(txns, forecast, asOf)...)
+		convertTypesOpportunities(rules.AnalyzeVendorPayments(typesTxns, typesForecast, asOf))...)
 
 	// ── 3. Sort risks by severity (CRITICAL first) ────────────────────────────
 	sortRisks(allRisks)
@@ -206,4 +212,81 @@ func sortRisks(risks []Risk) {
 	sort.SliceStable(risks, func(i, j int) bool {
 		return order[risks[i].Severity] < order[risks[j].Severity]
 	})
+}
+
+func severityRank(s AlertSeverity) int {
+	switch s {
+	case SeverityCritical:
+		return 1
+	case SeverityHigh:
+		return 2
+	case SeverityMedium:
+		return 3
+	case SeverityLow:
+		return 4
+	default:
+		return 5
+	}
+}
+
+// convertTypesRisks converts from types.Risk to insights.Risk
+func convertTypesRisks(trisks []types.Risk) []Risk {
+	risks := make([]Risk, len(trisks))
+	for i, tr := range trisks {
+		risks[i] = Risk{
+			ID:       RiskID(tr.ID),
+			Severity: AlertSeverity(tr.Severity),
+			Title:    tr.Title,
+			Message:  tr.Message,
+			Data:     tr.Data,
+		}
+	}
+	return risks
+}
+
+// convertTypesOpportunities converts from types.Opportunity to insights.Opportunity
+func convertTypesOpportunities(topps []types.Opportunity) []Opportunity {
+	opps := make([]Opportunity, len(topps))
+	for i, to := range topps {
+		opps[i] = Opportunity{
+			ID:             OpportunityID(to.ID),
+			Title:          to.Title,
+			Message:        to.Message,
+			PotentialValue: to.PotentialValue,
+			Data:           to.Data,
+		}
+	}
+	return opps
+}
+
+// convertToTypesTransactions converts insights.BankTransaction to types.BankTransaction
+func convertToTypesTransactions(txns []BankTransaction) []types.BankTransaction {
+	result := make([]types.BankTransaction, len(txns))
+	for i, t := range txns {
+		result[i] = types.BankTransaction{
+			ID:           t.ID.String(),
+			Date:         t.Date,
+			Description:  t.Description,
+			Amount:       t.Amount,
+			Type:         types.TransactionType(t.Type),
+			BalanceAfter: t.BalanceAfter,
+		}
+	}
+	return result
+}
+
+// convertToTypesForecast converts insights.ForecastEntry to types.ForecastEntry
+func convertToTypesForecast(forecast []ForecastEntry) []types.ForecastEntry {
+	result := make([]types.ForecastEntry, len(forecast))
+	for i, f := range forecast {
+		result[i] = types.ForecastEntry{
+			WeekNumber:              f.WeekNumber,
+			WeekStart:               f.WeekStartDate,
+			WeekStartDate:           f.WeekStartDate,
+			ForecastedEndingBalance: f.ForecastedEndingBalance,
+			ForecastedOutflow:       f.ForecastedOutflow,
+			ForecastedInflow:        f.ForecastedInflow,
+		}
+	}
+	return result
 }

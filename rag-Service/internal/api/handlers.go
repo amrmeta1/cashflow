@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/rag-service/internal/models"
-	"github.com/rag-service/internal/rag"
+	"tadfuq/rag-service/internal/models"
+	"tadfuq/rag-service/internal/rag"
 )
 
 // Handler holds the RAG pipeline and handles HTTP requests

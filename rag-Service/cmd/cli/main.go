@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rag-service/internal/config"
-	"github.com/rag-service/internal/db"
-	"github.com/rag-service/internal/embeddings"
-	"github.com/rag-service/internal/llm"
-	"github.com/rag-service/internal/models"
-	"github.com/rag-service/internal/rag"
+	"tadfuq/rag-service/internal/config"
+	"tadfuq/rag-service/internal/db"
+	"tadfuq/rag-service/internal/embeddings"
+	"tadfuq/rag-service/internal/llm"
+	"tadfuq/rag-service/internal/models"
+	"tadfuq/rag-service/internal/rag"
 	"github.com/spf13/cobra"
 )
 

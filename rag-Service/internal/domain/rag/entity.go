@@ -107,7 +107,7 @@ type Citation struct {
 	DocumentName string    `json:"document_name"`
 	PageNumber   int       `json:"page_number"`
 	ChunkIndex   int       `json:"chunk_index"`
-	Excerpt      string    `json:"excerpt"`       // first 300 chars of the chunk
+	Excerpt      string    `json:"excerpt"` // first 300 chars of the chunk
 	Similarity   float64   `json:"similarity"`
 }
 
@@ -142,8 +142,10 @@ type QueryRequest struct {
 
 // ParsedDocument is what the Parser port returns.
 type ParsedDocument struct {
-	Pages     []string // one entry per page / section
-	PageCount int
+	Pages      []string // one entry per page / section
+	PageCount  int
+	SourceType string   // "excel", "csv", "pdf", "docx", "image", "txt"
+	SheetNames []string // for Excel files, one per page
 }
 
 // LLMMessage is a single turn in conversation history passed to the LLM.

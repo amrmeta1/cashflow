@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/rag-service/internal/domain/insights"
+	"tadfuq/rag-service/internal/domain/insights/types"
 )
 
 // ─── Thresholds ──────────────────────────────────────────────────────────────
@@ -31,9 +31,9 @@ const (
 //  4. Detect an upward burn TREND if the last `BurnTrendWeeks` consecutive weeks each
 //     showed higher outflow than the one before.
 func AnalyzeBurnSpike(
-	txns []insights.BankTransaction,
+	txns []types.BankTransaction,
 	asOf time.Time,
-) []insights.Risk {
+) []types.Risk {
 
 	if len(txns) == 0 {
 		return nil
@@ -62,16 +62,16 @@ func AnalyzeBurnSpike(
 	threshold := priorMean + BurnSpikeStddevMultiple*priorStd
 	changeVsPrior := pct(currentBurn-priorMean, priorMean)
 
-	var risks []insights.Risk
+	var risks []types.Risk
 
 	// ── Spike detection ───────────────────────────────────────────────────────
 	if currentBurn > threshold && priorMean > 0 {
-		sev := insights.SeverityHigh
+		sev := types.SeverityHigh
 		if currentBurn > priorMean+3*priorStd {
-			sev = insights.SeverityCritical
+			sev = types.SeverityCritical
 		}
-		risks = append(risks, insights.Risk{
-			ID:       insights.RiskBurnSpike,
+		risks = append(risks, types.Risk{
+			ID:       types.RiskBurnSpike,
 			Severity: sev,
 			Title:    "Abnormal Burn Spike Detected",
 			Message: fmt.Sprintf(
@@ -106,9 +106,9 @@ func AnalyzeBurnSpike(
 			firstVal := weeklyOut[tail[0]]
 			lastVal := weeklyOut[tail[len(tail)-1]]
 			totalIncrease := pct(lastVal-firstVal, firstVal)
-			risks = append(risks, insights.Risk{
-				ID:       insights.RiskBurnTrend,
-				Severity: insights.SeverityMedium,
+			risks = append(risks, types.Risk{
+				ID:       types.RiskBurnTrend,
+				Severity: types.SeverityMedium,
 				Title:    fmt.Sprintf("Burn Rate Rising for %d Consecutive Weeks", BurnTrendWeeks),
 				Message: fmt.Sprintf(
 					"Outflow has increased each of the last %d weeks, growing %.1f%% "+

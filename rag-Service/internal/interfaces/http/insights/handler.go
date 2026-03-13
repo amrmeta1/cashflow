@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	domain "github.com/rag-service/internal/domain/insights"
+	domain "tadfuq/rag-service/internal/domain/insights"
 )
 
 // Handler exposes the deterministic Insights Engine over HTTP.

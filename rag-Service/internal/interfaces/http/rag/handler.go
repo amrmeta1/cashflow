@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"tadfuq/rag-service/internal/domain/rag"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/rag-service/internal/domain/rag"
 )
 
 // Handler holds a reference to the domain service and exposes
@@ -53,13 +54,14 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 	// Validate file type
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	allowed := map[string]bool{
-		".pdf": true, ".docx": true,
+		".pdf": true, ".docx": true, ".txt": true,
+		".xlsx": true, ".xls": true, ".csv": true,
 		".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true,
 	}
 	if !allowed[ext] {
 		c.JSON(http.StatusUnprocessableEntity, ErrorResponse{
 			Code:    "UNSUPPORTED_FILE_TYPE",
-			Message: fmt.Sprintf("file type %q is not supported; allowed: pdf, docx, jpg, jpeg, png, webp, gif", ext),
+			Message: fmt.Sprintf("file type %q is not supported; allowed: pdf, docx, txt, xlsx, xls, csv, jpg, jpeg, png, webp, gif", ext),
 		})
 		return
 	}
@@ -269,15 +271,11 @@ func (h *Handler) handleDomainError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, ErrorResponse{Code: "TENANT_NOT_FOUND", Message: err.Error()})
 	case errors.Is(err, rag.ErrDocumentNotFound):
 		c.JSON(http.StatusNotFound, ErrorResponse{Code: "DOCUMENT_NOT_FOUND", Message: err.Error()})
-	case errors.Is(err, rag.ErrForbiddenCategory):
-		c.JSON(http.StatusUnprocessableEntity, ErrorResponse{Code: "FORBIDDEN_CATEGORY", Message: err.Error()})
-	case errors.Is(err, rag.ErrUnsupportedFileType):
-		c.JSON(http.StatusUnprocessableEntity, ErrorResponse{Code: "UNSUPPORTED_FILE_TYPE", Message: err.Error()})
-	case errors.Is(err, rag.ErrEmptyDocument):
-		c.JSON(http.StatusUnprocessableEntity, ErrorResponse{Code: "EMPTY_DOCUMENT", Message: err.Error()})
 	case errors.Is(err, rag.ErrNoDocumentsIngested):
 		c.JSON(http.StatusNotFound, ErrorResponse{Code: "NO_DOCUMENTS", Message: err.Error()})
 	default:
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Code: "INTERNAL_ERROR", Message: "an unexpected error occurred"})
+		// Log the actual error for debugging
+		fmt.Printf("RAG Query Error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Code: "INTERNAL_ERROR", Message: fmt.Sprintf("error: %v", err)})
 	}
 }

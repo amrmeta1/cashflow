@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rag-service/internal/domain/insights"
+	"tadfuq/rag-service/internal/domain/insights/types"
 )
 
 // ─── Thresholds ──────────────────────────────────────────────────────────────
@@ -29,6 +29,12 @@ const (
 	receivablesLookback = 90
 )
 
+// occurrence represents a single transaction occurrence
+type occurrence struct {
+	date   time.Time
+	amount float64
+}
+
 // AnalyzeReceivables implements Rule 4.
 //
 // Logic:
@@ -39,9 +45,9 @@ const (
 //     inflow has arrived → flag as overdue receivable.
 //  4. Sum the overdue amounts → PotentialValue.
 func AnalyzeReceivables(
-	txns []insights.BankTransaction,
+	txns []types.BankTransaction,
 	asOf time.Time,
-) []insights.Opportunity {
+) []types.Opportunity {
 
 	if len(txns) == 0 {
 		return nil
@@ -50,13 +56,9 @@ func AnalyzeReceivables(
 	cutoff := asOf.AddDate(0, 0, -receivablesLookback)
 
 	// Group credits by normalised description prefix
-	type occurrence struct {
-		date   time.Time
-		amount float64
-	}
 	grouped := make(map[string][]occurrence)
 	for _, t := range txns {
-		if t.Type != insights.Credit {
+		if t.Type != types.Credit {
 			continue
 		}
 		if t.Date.Before(cutoff) || t.Date.After(asOf) {
@@ -115,7 +117,7 @@ func AnalyzeReceivables(
 		// Confirm no matching inflow arrived after last occurrence
 		alreadyReceived := false
 		for _, t := range txns {
-			if t.Type == insights.Credit &&
+			if t.Type == types.Credit &&
 				normaliseDesc(t.Description) == src &&
 				t.Date.After(last.date) {
 				alreadyReceived = true
@@ -156,8 +158,8 @@ func AnalyzeReceivables(
 		})
 	}
 
-	return []insights.Opportunity{{
-		ID:    insights.OpportunityOverdueReceivables,
+	return []types.Opportunity{{
+		ID:    types.OpportunityOverdueReceivables,
 		Title: fmt.Sprintf("%d Overdue Recurring Receivable(s)", len(overdue)),
 		Message: fmt.Sprintf(
 			"%d recurring inflow source(s) are overdue by at least %d days, "+
@@ -187,10 +189,7 @@ func normaliseDesc(desc string) string {
 	return desc
 }
 
-func occAmounts(occs []struct {
-	date   time.Time
-	amount float64
-}) []float64 {
+func occAmounts(occs []occurrence) []float64 {
 	out := make([]float64, len(occs))
 	for i, o := range occs {
 		out[i] = o.amount

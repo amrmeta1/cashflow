@@ -11,13 +11,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 
+	"tadfuq/rag-service/internal/domain/rag"
+
 	"github.com/ledongthuc/pdf"
-	"github.com/rag-service/internal/domain/rag"
+	"github.com/xuri/excelize/v2"
 )
 
 // claudeVision is a minimal interface so this package does not
@@ -50,7 +53,13 @@ func (p *DocumentParser) Parse(ctx context.Context, filename string, data []byte
 	case ".pdf":
 		return p.parsePDF(ctx, data)
 	case ".docx":
-		return p.parseDOCX(data)
+		return p.parseDOCX(ctx, data)
+	case ".txt":
+		return p.parseTXT(ctx, data)
+	case ".xlsx", ".xls":
+		return p.parseExcel(ctx, data)
+	case ".csv":
+		return p.parseCSV(ctx, data)
 	case ".jpg", ".jpeg":
 		return p.parseImage(ctx, data, "image/jpeg")
 	case ".png":
@@ -77,7 +86,11 @@ func (p *DocumentParser) parsePDF(ctx context.Context, data []byte) (*rag.Parsed
 	}
 
 	if err == nil && totalChars > 100 {
-		return &rag.ParsedDocument{Pages: cleanPages(pages), PageCount: len(pages)}, nil
+		return &rag.ParsedDocument{
+			Pages:      cleanPages(pages),
+			PageCount:  len(pages),
+			SourceType: "pdf",
+		}, nil
 	}
 
 	// Fallback: treat as image-based PDF, send to Claude vision
@@ -86,7 +99,11 @@ func (p *DocumentParser) parsePDF(ctx context.Context, data []byte) (*rag.Parsed
 		return nil, fmt.Errorf("processor.parsePDF (vision fallback): %w", err)
 	}
 	pages = []string{text}
-	return &rag.ParsedDocument{Pages: pages, PageCount: 1}, nil
+	return &rag.ParsedDocument{
+		Pages:      pages,
+		PageCount:  1,
+		SourceType: "pdf",
+	}, nil
 }
 
 func extractPDFPages(data []byte) ([]string, error) {
@@ -132,7 +149,11 @@ func (p *DocumentParser) parseDOCX(_ context.Context, data []byte) (*rag.ParsedD
 		if strings.TrimSpace(text) == "" {
 			return nil, rag.ErrEmptyDocument
 		}
-		return &rag.ParsedDocument{Pages: []string{text}, PageCount: 1}, nil
+		return &rag.ParsedDocument{
+			Pages:      []string{text},
+			PageCount:  1,
+			SourceType: "docx",
+		}, nil
 	}
 	return nil, fmt.Errorf("processor.parseDOCX: word/document.xml not found in archive")
 }
@@ -171,6 +192,110 @@ func stripXML(src string) string {
 }
 
 // ----------------------------------------------------------------
+// Excel
+// ----------------------------------------------------------------
+
+func (p *DocumentParser) parseExcel(_ context.Context, data []byte) (*rag.ParsedDocument, error) {
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("processor.parseExcel: failed to open: %w", err)
+	}
+	defer f.Close()
+
+	var pages []string
+	sheets := f.GetSheetList()
+
+	for _, sheet := range sheets {
+		rows, err := f.GetRows(sheet)
+		if err != nil {
+			continue
+		}
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Sheet: %s\n\n", sheet))
+
+		for _, row := range rows {
+			if len(row) == 0 {
+				continue
+			}
+			// Join cells with | delimiter for table structure
+			sb.WriteString(strings.Join(row, " | "))
+			sb.WriteString("\n")
+		}
+
+		if content := strings.TrimSpace(sb.String()); content != "" {
+			pages = append(pages, content)
+		}
+	}
+
+	if len(pages) == 0 {
+		return nil, rag.ErrEmptyDocument
+	}
+
+	return &rag.ParsedDocument{
+		Pages:      pages,
+		PageCount:  len(pages),
+		SourceType: "excel",
+		SheetNames: sheets,
+	}, nil
+}
+
+// ----------------------------------------------------------------
+// CSV
+// ----------------------------------------------------------------
+
+func (p *DocumentParser) parseCSV(_ context.Context, data []byte) (*rag.ParsedDocument, error) {
+	r := csv.NewReader(bytes.NewReader(data))
+	r.TrimLeadingSpace = true
+
+	records, err := r.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("processor.parseCSV: failed to read: %w", err)
+	}
+
+	if len(records) == 0 {
+		return nil, rag.ErrEmptyDocument
+	}
+
+	var sb strings.Builder
+	for _, record := range records {
+		if len(record) == 0 {
+			continue
+		}
+		// Join cells with | delimiter for table structure
+		sb.WriteString(strings.Join(record, " | "))
+		sb.WriteString("\n")
+	}
+
+	content := strings.TrimSpace(sb.String())
+	if content == "" {
+		return nil, rag.ErrEmptyDocument
+	}
+
+	return &rag.ParsedDocument{
+		Pages:      []string{content},
+		PageCount:  1,
+		SourceType: "csv",
+	}, nil
+}
+
+// ----------------------------------------------------------------
+// TXT
+// ----------------------------------------------------------------
+
+func (p *DocumentParser) parseTXT(_ context.Context, data []byte) (*rag.ParsedDocument, error) {
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		return nil, rag.ErrEmptyDocument
+	}
+	return &rag.ParsedDocument{
+		Pages:      []string{content},
+		PageCount:  1,
+		SourceType: "txt",
+	}, nil
+}
+
+// ----------------------------------------------------------------
 // Images
 // ----------------------------------------------------------------
 
@@ -179,7 +304,11 @@ func (p *DocumentParser) parseImage(ctx context.Context, data []byte, mediaType 
 	if err != nil {
 		return nil, fmt.Errorf("processor.parseImage (%s): %w", mediaType, err)
 	}
-	return &rag.ParsedDocument{Pages: []string{text}, PageCount: 1}, nil
+	return &rag.ParsedDocument{
+		Pages:      []string{text},
+		PageCount:  1,
+		SourceType: "image",
+	}, nil
 }
 
 // ----------------------------------------------------------------

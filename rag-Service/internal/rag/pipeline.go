@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 	pgvector "github.com/pgvector/pgvector-go"
-	"github.com/rag-service/internal/db"
-	"github.com/rag-service/internal/embeddings"
-	"github.com/rag-service/internal/llm"
-	"github.com/rag-service/internal/models"
-	"github.com/rag-service/internal/processor"
+	"tadfuq/rag-service/internal/db"
+	"tadfuq/rag-service/internal/embeddings"
+	"tadfuq/rag-service/internal/llm"
+	"tadfuq/rag-service/internal/models"
+	"tadfuq/rag-service/internal/processor"
 )
 
 // Pipeline orchestrates the full RAG workflow

@@ -3,12 +3,14 @@ package llm
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
+	"tadfuq/rag-service/internal/domain/rag"
+
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/rag-service/internal/domain/rag"
 )
 
 const (
@@ -43,7 +45,7 @@ type ClaudeLLM struct {
 func NewClaudeLLM(apiKey string) *ClaudeLLM {
 	c := anthropic.NewClient(option.WithAPIKey(apiKey))
 	return &ClaudeLLM{
-		client:    &c,
+		client:    c,
 		model:     defaultModel,
 		maxTokens: defaultMaxTokens,
 	}
@@ -68,14 +70,20 @@ func (cl *ClaudeLLM) Answer(
 		messages = append(messages, anthropic.MessageParam{
 			Role: anthropic.F(role),
 			Content: anthropic.F([]anthropic.ContentBlockParamUnion{
-				anthropic.TextBlockParam{Type: "text", Text: anthropic.String(h.Content)},
+				anthropic.TextBlockParam{
+					Type: anthropic.F(anthropic.TextBlockParamTypeText),
+					Text: anthropic.F(h.Content),
+				},
 			}),
 		})
 	}
 	messages = append(messages, anthropic.MessageParam{
 		Role: anthropic.F(anthropic.MessageParamRoleUser),
 		Content: anthropic.F([]anthropic.ContentBlockParamUnion{
-			anthropic.TextBlockParam{Type: "text", Text: anthropic.String(question)},
+			anthropic.TextBlockParam{
+				Type: anthropic.F(anthropic.TextBlockParamTypeText),
+				Text: anthropic.F(question),
+			},
 		}),
 	})
 
@@ -85,7 +93,10 @@ func (cl *ClaudeLLM) Answer(
 		Model:     anthropic.F(cl.model),
 		MaxTokens: anthropic.F(cl.maxTokens),
 		System: anthropic.F([]anthropic.TextBlockParam{
-			{Type: "text", Text: anthropic.String(fullSystem)},
+			{
+				Type: anthropic.F(anthropic.TextBlockParamTypeText),
+				Text: anthropic.F(fullSystem),
+			},
 		}),
 		Messages: anthropic.F(messages),
 	})
@@ -94,6 +105,68 @@ func (cl *ClaudeLLM) Answer(
 	}
 	if len(msg.Content) == 0 {
 		return "", fmt.Errorf("claude.Answer: empty response")
+	}
+
+	var sb strings.Builder
+	for _, block := range msg.Content {
+		if block.Type == "text" {
+			sb.WriteString(block.Text)
+		}
+	}
+	return sb.String(), nil
+}
+
+// ExtractFromFile uses Claude to extract text from a file (PDF, image)
+// This implements the processor.claudeVision interface
+func (cl *ClaudeLLM) ExtractFromFile(ctx context.Context, data []byte, mediaType string, hint string) (string, error) {
+	encoded := base64.StdEncoding.EncodeToString(data)
+
+	var contentBlock anthropic.ContentBlockParamUnion
+
+	if mediaType == "application/pdf" {
+		// PDF as document block
+		contentBlock = anthropic.DocumentBlockParam{
+			Type: anthropic.F(anthropic.DocumentBlockParamTypeDocument),
+			Source: anthropic.F(anthropic.Base64PDFSourceParam{
+				Type:      anthropic.F(anthropic.Base64PDFSourceTypeBase64),
+				MediaType: anthropic.F(anthropic.Base64PDFSourceMediaTypeApplicationPDF),
+				Data:      anthropic.F(encoded),
+			}),
+		}
+	} else {
+		// Image block
+		contentBlock = anthropic.ImageBlockParam{
+			Type: anthropic.F(anthropic.ImageBlockParamTypeImage),
+			Source: anthropic.F(anthropic.ImageBlockParamSource{
+				Type:      anthropic.F(anthropic.ImageBlockParamSourceTypeBase64),
+				MediaType: anthropic.F(anthropic.ImageBlockParamSourceMediaType(mediaType)),
+				Data:      anthropic.F(encoded),
+			}),
+		}
+	}
+
+	msg, err := cl.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.F(cl.model),
+		MaxTokens: anthropic.F(cl.maxTokens),
+		Messages: anthropic.F([]anthropic.MessageParam{
+			{
+				Role: anthropic.F(anthropic.MessageParamRoleUser),
+				Content: anthropic.F([]anthropic.ContentBlockParamUnion{
+					contentBlock,
+					anthropic.TextBlockParam{
+						Type: anthropic.F(anthropic.TextBlockParamTypeText),
+						Text: anthropic.F(hint),
+					},
+				}),
+			},
+		}),
+	})
+	if err != nil {
+		return "", fmt.Errorf("claude API error: %w", err)
+	}
+
+	if len(msg.Content) == 0 {
+		return "", fmt.Errorf("empty response from Claude")
 	}
 
 	var sb strings.Builder

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/rag-service/internal/domain/insights"
+	"tadfuq/rag-service/internal/domain/insights/types"
 )
 
 // ─── Thresholds ──────────────────────────────────────────────────────────────
@@ -41,10 +41,10 @@ const (
 //	   balance was dangerously low (< ConflictLowBalanceRatio × avgWeeklyBurn).
 //	   Suggest moving those payments to higher-balance periods.
 func AnalyzeVendorPayments(
-	txns []insights.BankTransaction,
-	forecast []insights.ForecastEntry,
+	txns []types.BankTransaction,
+	forecast []types.ForecastEntry,
 	asOf time.Time,
-) []insights.Opportunity {
+) []types.Opportunity {
 
 	if len(txns) == 0 {
 		return nil
@@ -53,9 +53,9 @@ func AnalyzeVendorPayments(
 	cutoff := asOf.AddDate(0, 0, -vendorLookbackDays)
 
 	// Filter to vendor debits within the lookback window
-	var debits []insights.BankTransaction
+	var debits []types.BankTransaction
 	for _, t := range txns {
-		if t.Type == insights.Debit && !t.Date.Before(cutoff) && !t.Date.After(asOf) {
+		if t.Type == types.Debit && !t.Date.Before(cutoff) && !t.Date.After(asOf) {
 			debits = append(debits, t)
 		}
 	}
@@ -73,7 +73,7 @@ func AnalyzeVendorPayments(
 
 	reschedOpp := detectRescheduling(debits, avgBurn, forecast)
 
-	var opps []insights.Opportunity
+	var opps []types.Opportunity
 	if batchOpp != nil {
 		opps = append(opps, *batchOpp)
 	}
@@ -84,9 +84,9 @@ func AnalyzeVendorPayments(
 }
 
 // detectBatching finds vendors receiving ≥ BatchingMinPayments within BatchingWindowDays.
-func detectBatching(debits []insights.BankTransaction) *insights.Opportunity {
+func detectBatching(debits []types.BankTransaction) *types.Opportunity {
 	// Group by normalised vendor name
-	byVendor := make(map[string][]insights.BankTransaction)
+	byVendor := make(map[string][]types.BankTransaction)
 	for _, d := range debits {
 		key := normaliseDesc(d.Description)
 		byVendor[key] = append(byVendor[key], d)
@@ -164,8 +164,8 @@ func detectBatching(debits []insights.BankTransaction) *insights.Opportunity {
 		totalSavingsProxy += c.totalAmount
 	}
 
-	return &insights.Opportunity{
-		ID:    insights.OpportunityVendorBatching,
+	return &types.Opportunity{
+		ID:    types.OpportunityVendorBatching,
 		Title: fmt.Sprintf("%d Vendor(s) Eligible for Payment Batching", len(candidates)),
 		Message: fmt.Sprintf(
 			"%d vendor(s) received %d+ separate payments within a %d-day window. "+
@@ -183,10 +183,10 @@ func detectBatching(debits []insights.BankTransaction) *insights.Opportunity {
 
 // detectRescheduling flags vendor payments executed during low-balance periods.
 func detectRescheduling(
-	debits []insights.BankTransaction,
+	debits []types.BankTransaction,
 	avgBurn float64,
-	forecast []insights.ForecastEntry,
-) *insights.Opportunity {
+	forecast []types.ForecastEntry,
+) *types.Opportunity {
 
 	if avgBurn == 0 {
 		return nil
@@ -194,7 +194,7 @@ func detectRescheduling(
 	lowBalanceThreshold := avgBurn * ConflictLowBalanceRatio
 
 	// Group by vendor
-	byVendor := make(map[string][]insights.BankTransaction)
+	byVendor := make(map[string][]types.BankTransaction)
 	for _, d := range debits {
 		key := normaliseDesc(d.Description)
 		byVendor[key] = append(byVendor[key], d)
@@ -273,8 +273,8 @@ func detectRescheduling(
 		totalAtRisk += c.amount
 	}
 
-	return &insights.Opportunity{
-		ID:    insights.OpportunityVendorRescheduling,
+	return &types.Opportunity{
+		ID:    types.OpportunityVendorRescheduling,
 		Title: fmt.Sprintf("%d Payment(s) Executed During Low-Balance Periods", len(conflicts)),
 		Message: fmt.Sprintf(
 			"%d historical vendor payment(s) totalling %.0f were made when the running "+

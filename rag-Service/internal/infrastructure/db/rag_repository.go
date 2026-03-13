@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rag-service/internal/domain/rag"
+	"tadfuq/rag-service/internal/domain/rag"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	pgvector "github.com/pgvector/pgvector-go"
@@ -37,7 +37,7 @@ func NewRAGStore(dsn string) (*RAGStore, error) {
 	if err := conn.Ping(); err != nil {
 		return nil, fmt.Errorf("db.NewRAGStore: ping: %w", err)
 	}
-	pgvector.RegisterTypes(conn)
+	// pgvector types are automatically registered in v0.2.2+
 	conn.SetMaxOpenConns(25)
 	conn.SetMaxIdleConns(5)
 	conn.SetConnMaxLifetime(5 * time.Minute)
@@ -105,7 +105,7 @@ func (s *RAGStore) FindByID(ctx context.Context, tenantID, docID uuid.UUID) (*ra
 		SELECT id, tenant_id, name, file_type, category, file_size, page_count,
 		       status, metadata, created_at, updated_at
 		FROM rag_documents
-		WHERE id = $1 AND tenant_id = $2`   -- tenant isolation enforced here
+		WHERE id = $1 AND tenant_id = $2`   /* tenant isolation enforced here */
 
 	doc := &rag.Document{}
 	var meta []byte
@@ -132,7 +132,7 @@ func (s *RAGStore) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]rag.
 		SELECT id, tenant_id, name, file_type, category, file_size, page_count,
 		       status, metadata, created_at, updated_at
 		FROM rag_documents
-		WHERE tenant_id = $1          -- tenant isolation enforced here
+		WHERE tenant_id = $1          /* tenant isolation enforced here */
 		ORDER BY created_at DESC`
 
 	rows, err := s.db.QueryContext(ctx, q, tenantID)
@@ -164,7 +164,7 @@ func (s *RAGStore) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]rag.
 // tenant_id guard prevents cross-tenant deletes.
 func (s *RAGStore) Delete(ctx context.Context, tenantID, docID uuid.UUID) error {
 	res, err := s.db.ExecContext(ctx,
-		`DELETE FROM rag_documents WHERE id = $1 AND tenant_id = $2`, -- tenant guard
+		`DELETE FROM rag_documents WHERE id = $1 AND tenant_id = $2`, /* tenant guard */
 		docID, tenantID,
 	)
 	if err != nil {
@@ -236,7 +236,7 @@ func (s *RAGStore) SearchSimilar(
 		    1 - (c.embedding <=> $1)       AS similarity
 		FROM  rag_chunks    c
 		JOIN  rag_documents d ON d.id = c.document_id
-		WHERE c.tenant_id = $2             -- ← tenant isolation
+		WHERE c.tenant_id = $2             /* ← tenant isolation */
 		ORDER BY c.embedding <=> $1
 		LIMIT $3`
 
@@ -295,7 +295,7 @@ func (s *RAGStore) GetHistory(ctx context.Context, tenantID, sessionID uuid.UUID
 	const q = `
 		SELECT role, content
 		FROM   rag_query_messages
-		WHERE  session_id = $1 AND tenant_id = $2  -- tenant guard on history too
+		WHERE  session_id = $1 AND tenant_id = $2  /* tenant guard on history too */
 		ORDER  BY created_at DESC
 		LIMIT  $3`
 

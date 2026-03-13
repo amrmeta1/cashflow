@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/rag-service/internal/domain/insights"
+	"tadfuq/rag-service/internal/domain/insights/types"
 )
 
 // ─── Thresholds ──────────────────────────────────────────────────────────────
@@ -35,10 +35,10 @@ const (
 //  4. Compare the first forecast week's expected inflow to the same baseline.
 //     If forecast inflow is already below baseline by RevForecastMissPct → pre-warn.
 func AnalyzeRevenueDrop(
-	txns []insights.BankTransaction,
-	forecast []insights.ForecastEntry,
+	txns []types.BankTransaction,
+	forecast []types.ForecastEntry,
 	asOf time.Time,
-) []insights.Risk {
+) []types.Risk {
 
 	if len(txns) == 0 {
 		return nil
@@ -66,14 +66,14 @@ func AnalyzeRevenueDrop(
 
 	dropPct := pct(baseline-currentInflow, baseline) // positive = drop, negative = growth
 
-	var risks []insights.Risk
+	var risks []types.Risk
 
 	// ── Actual inflow drop ────────────────────────────────────────────────────
 	switch {
 	case dropPct >= RevDropHighPct:
-		risks = append(risks, insights.Risk{
-			ID:       insights.RiskRevenueDrop,
-			Severity: insights.SeverityHigh,
+		risks = append(risks, types.Risk{
+			ID:       types.RiskRevenueDrop,
+			Severity: types.SeverityHigh,
 			Title:    "Significant Revenue Drop",
 			Message: fmt.Sprintf(
 				"Inflow this week (%.0f) is %.1f%% below the %d-week average of %.0f.",
@@ -82,9 +82,9 @@ func AnalyzeRevenueDrop(
 			Data: inDropData(currentWeek, currentInflow, baseline, dropPct, revLookbackWeeks),
 		})
 	case dropPct >= RevDropMediumPct:
-		risks = append(risks, insights.Risk{
-			ID:       insights.RiskRevenueDrop,
-			Severity: insights.SeverityMedium,
+		risks = append(risks, types.Risk{
+			ID:       types.RiskRevenueDrop,
+			Severity: types.SeverityMedium,
 			Title:    "Revenue Below Average",
 			Message: fmt.Sprintf(
 				"Inflow this week (%.0f) is %.1f%% below the %d-week average of %.0f.",
@@ -100,9 +100,9 @@ func AnalyzeRevenueDrop(
 		fw := forecast[0]
 		forecastMissPct := pct(baseline-fw.ForecastedInflow, baseline)
 		if forecastMissPct >= RevForecastMissPct {
-			risks = append(risks, insights.Risk{
-				ID:       insights.RiskRevenueMiss,
-				Severity: insights.SeverityMedium,
+			risks = append(risks, types.Risk{
+				ID:       types.RiskRevenueMiss,
+				Severity: types.SeverityMedium,
 				Title:    "Forecast Revenue Below Historical Average",
 				Message: fmt.Sprintf(
 					"Forecast week 1 inflow (%.0f) is %.1f%% below the historical %d-week average of %.0f.",

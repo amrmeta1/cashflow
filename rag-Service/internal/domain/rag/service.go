@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	chunkerservice "tadfuq/rag-service/internal/service"
+
 	"github.com/google/uuid"
 )
 
@@ -31,69 +33,6 @@ type Service interface {
 }
 
 // ----------------------------------------------------------------
-// Chunker  (pure domain helper — no external dependency)
-// ----------------------------------------------------------------
-
-type chunker struct {
-	chunkSize    int
-	chunkOverlap int
-}
-
-func newChunker(size, overlap int) *chunker {
-	if size <= 0 {
-		size = 800
-	}
-	if overlap < 0 || overlap >= size {
-		overlap = 100
-	}
-	return &chunker{chunkSize: size, chunkOverlap: overlap}
-}
-
-// chunkPages splits multi-page text into overlapping Chunk objects.
-func (c *chunker) chunkPages(pages []string) []rawChunk {
-	var out []rawChunk
-	idx := 0
-	for pageNum, page := range pages {
-		page = normaliseText(page)
-		if page == "" {
-			continue
-		}
-		sentences := splitSentences(page)
-		var cur strings.Builder
-
-		for i, sent := range sentences {
-			if cur.Len() > 0 && cur.Len()+len(sent) > c.chunkSize {
-				text := strings.TrimSpace(cur.String())
-				if text != "" {
-					out = append(out, rawChunk{Content: text, Index: idx, Page: pageNum + 1})
-					idx++
-				}
-				// start next chunk with overlap
-				overlapStart := overlapIndex(sentences[:i], c.chunkOverlap)
-				cur.Reset()
-				for _, s := range sentences[overlapStart:i] {
-					cur.WriteString(s)
-					cur.WriteRune(' ')
-				}
-			}
-			cur.WriteString(sent)
-			cur.WriteRune(' ')
-		}
-		if remaining := strings.TrimSpace(cur.String()); remaining != "" {
-			out = append(out, rawChunk{Content: remaining, Index: idx, Page: pageNum + 1})
-			idx++
-		}
-	}
-	return out
-}
-
-type rawChunk struct {
-	Content string
-	Index   int
-	Page    int
-}
-
-// ----------------------------------------------------------------
 // Service implementation
 // ----------------------------------------------------------------
 
@@ -111,7 +50,7 @@ type service struct {
 	embedder Embedder
 	llm      LLM
 	parser   Parser
-	chunker  *chunker
+	chunker  *chunkerservice.Chunker
 	topK     int
 }
 
@@ -119,18 +58,32 @@ type service struct {
 // All dependencies are injected via their domain interfaces —
 // no infrastructure package is imported.
 func NewService(
-	docs     DocumentRepository,
-	chunks   ChunkRepository,
+	docs DocumentRepository,
+	chunks ChunkRepository,
 	sessions SessionRepository,
 	embedder Embedder,
-	llm      LLM,
-	parser   Parser,
-	cfg      ServiceConfig,
+	llm LLM,
+	parser Parser,
+	cfg ServiceConfig,
 ) Service {
 	topK := cfg.TopK
 	if topK <= 0 {
 		topK = 5
 	}
+
+	// Initialize new financial-aware chunker
+	chunkerConfig := chunkerservice.ChunkerConfig{
+		TextTargetTokens:  700,
+		TextOverlapTokens: 50,
+		TableRowsPerChunk: 20,
+	}
+	if cfg.ChunkSize > 0 {
+		chunkerConfig.TextTargetTokens = cfg.ChunkSize
+	}
+	if cfg.ChunkOverlap > 0 {
+		chunkerConfig.TextOverlapTokens = cfg.ChunkOverlap
+	}
+
 	return &service{
 		docs:     docs,
 		chunks:   chunks,
@@ -138,7 +91,7 @@ func NewService(
 		embedder: embedder,
 		llm:      llm,
 		parser:   parser,
-		chunker:  newChunker(cfg.ChunkSize, cfg.ChunkOverlap),
+		chunker:  chunkerservice.NewChunker(chunkerConfig),
 		topK:     topK,
 	}
 }
@@ -189,17 +142,17 @@ func (s *service) IngestDocument(ctx context.Context, req UploadRequest) (*Docum
 	}
 	doc.PageCount = parsed.PageCount
 
-	// 5. Chunk the pages
-	rawChunks := s.chunker.chunkPages(parsed.Pages)
-	if len(rawChunks) == 0 {
+	// 5. Chunk the pages with financial-aware chunking
+	chunkResults := s.chunker.ChunkDocument(parsed.Pages, doc.ID, parsed.SourceType, parsed.SheetNames)
+	if len(chunkResults) == 0 {
 		_ = s.docs.UpdateStatus(ctx, req.TenantID, doc.ID, StatusFailed)
 		return nil, ErrEmptyDocument
 	}
 
 	// 6. Embed all chunks (voyage-finance-2)
-	texts := make([]string, len(rawChunks))
-	for i, rc := range rawChunks {
-		texts[i] = rc.Content
+	texts := make([]string, len(chunkResults))
+	for i, cr := range chunkResults {
+		texts[i] = cr.Content
 	}
 	vectors, err := s.embedder.EmbedDocuments(ctx, texts)
 	if err != nil {
@@ -207,18 +160,44 @@ func (s *service) IngestDocument(ctx context.Context, req UploadRequest) (*Docum
 		return nil, fmt.Errorf("rag.IngestDocument: embedding: %w", err)
 	}
 
-	// 7. Build domain Chunk objects
-	domainChunks := make([]Chunk, len(rawChunks))
-	for i, rc := range rawChunks {
+	// 7. Build domain Chunk objects with rich metadata
+	domainChunks := make([]Chunk, len(chunkResults))
+	for i, cr := range chunkResults {
+		// Build metadata map from ChunkMetadata
+		metadata := map[string]any{
+			"section_type": cr.Metadata.SectionType,
+			"source_page":  cr.Metadata.SourcePage,
+			"token_count":  cr.Metadata.TokenCount,
+			"char_start":   cr.Metadata.CharStart,
+			"char_end":     cr.Metadata.CharEnd,
+		}
+
+		// Add table-specific metadata
+		if cr.Metadata.RowStart != nil {
+			metadata["row_start"] = *cr.Metadata.RowStart
+		}
+		if cr.Metadata.RowEnd != nil {
+			metadata["row_end"] = *cr.Metadata.RowEnd
+		}
+		if cr.Metadata.SheetName != nil {
+			metadata["sheet_name"] = *cr.Metadata.SheetName
+		}
+		if cr.Metadata.TableName != nil {
+			metadata["table_name"] = *cr.Metadata.TableName
+		}
+		if len(cr.Metadata.ColumnHeaders) > 0 {
+			metadata["column_headers"] = cr.Metadata.ColumnHeaders
+		}
+
 		domainChunks[i] = Chunk{
 			ID:         uuid.New(),
 			TenantID:   req.TenantID,
 			DocumentID: doc.ID,
-			Content:    rc.Content,
-			ChunkIndex: rc.Index,
-			PageNumber: rc.Page,
+			Content:    cr.Content,
+			ChunkIndex: i,
+			PageNumber: cr.Metadata.SourcePage,
 			Embedding:  vectors[i],
-			Metadata:   map[string]any{},
+			Metadata:   metadata,
 		}
 	}
 
@@ -242,28 +221,40 @@ func (s *service) IngestDocument(ctx context.Context, req UploadRequest) (*Docum
 // ----------------------------------------------------------------
 
 func (s *service) Query(ctx context.Context, req QueryRequest) (*QueryResult, error) {
+	fmt.Printf("[RAG Query] Starting query for tenant %s: %s\n", req.TenantID, req.Question)
+
 	// 1. Guard: tenant must exist
 	ok, err := s.docs.TenantExists(ctx, req.TenantID)
 	if err != nil {
+		fmt.Printf("[RAG Query] Error checking tenant: %v\n", err)
 		return nil, fmt.Errorf("rag.Query: checking tenant: %w", err)
 	}
 	if !ok {
+		fmt.Printf("[RAG Query] Tenant not found: %s\n", req.TenantID)
 		return nil, ErrTenantNotFound
 	}
+	fmt.Printf("[RAG Query] Tenant exists\n")
 
 	// 2. Embed the query
+	fmt.Printf("[RAG Query] Embedding query...\n")
 	queryVec, err := s.embedder.EmbedQuery(ctx, req.Question)
 	if err != nil {
+		fmt.Printf("[RAG Query] Error embedding query: %v\n", err)
 		return nil, fmt.Errorf("rag.Query: embedding query: %w", err)
 	}
+	fmt.Printf("[RAG Query] Query embedded successfully, vector length: %d\n", len(queryVec))
 
 	// 3. Tenant-scoped similarity search
+	fmt.Printf("[RAG Query] Searching for similar chunks...\n")
 	scored, err := s.chunks.SearchSimilar(ctx, req.TenantID, queryVec, s.topK)
 	if err != nil {
+		fmt.Printf("[RAG Query] Error in similarity search: %v\n", err)
 		return nil, fmt.Errorf("rag.Query: similarity search: %w", err)
 	}
+	fmt.Printf("[RAG Query] Found %d similar chunks\n", len(scored))
 
 	if len(scored) == 0 {
+		fmt.Printf("[RAG Query] No chunks found, returning default message\n")
 		return &QueryResult{
 			Answer:    "I could not find relevant information in your documents to answer this question.",
 			Citations: []Citation{},
@@ -272,6 +263,7 @@ func (s *service) Query(ctx context.Context, req QueryRequest) (*QueryResult, er
 	}
 
 	// 4. Get / create session + load history
+	fmt.Printf("[RAG Query] Managing session...\n")
 	var sessionID uuid.UUID
 	var history []LLMMessage
 
@@ -281,18 +273,24 @@ func (s *service) Query(ctx context.Context, req QueryRequest) (*QueryResult, er
 	} else {
 		sessionID, err = s.sessions.CreateSession(ctx, req.TenantID, "")
 		if err != nil {
+			fmt.Printf("[RAG Query] Error creating session: %v\n", err)
 			return nil, fmt.Errorf("rag.Query: creating session: %w", err)
 		}
 	}
+	fmt.Printf("[RAG Query] Session ID: %s\n", sessionID)
 
 	// 5. Build grounded context for the LLM
 	contextText := buildContext(scored)
+	fmt.Printf("[RAG Query] Context built, length: %d chars\n", len(contextText))
 
 	// 6. Generate answer — only grounded in the retrieved context
+	fmt.Printf("[RAG Query] Calling LLM for answer...\n")
 	answer, err := s.llm.Answer(ctx, req.Question, contextText, history)
 	if err != nil {
+		fmt.Printf("[RAG Query] Error from LLM: %v\n", err)
 		return nil, fmt.Errorf("rag.Query: llm answer: %w", err)
 	}
+	fmt.Printf("[RAG Query] LLM answer received, length: %d chars\n", len(answer))
 
 	// 7. Persist conversation turn
 	_ = s.sessions.SaveMessage(ctx, sessionID, req.TenantID, "user", req.Question)

@@ -10,24 +10,24 @@ import (
 	"time"
 
 	// ── Legacy RAG (existing endpoints — left untouched) ──────────
-	legacyapi "github.com/rag-service/internal/api"
-	"github.com/rag-service/internal/config"
-	legacydb "github.com/rag-service/internal/db"
-	"github.com/rag-service/internal/embeddings"
-	"github.com/rag-service/internal/llm"
-	legacyrag "github.com/rag-service/internal/rag"
+	legacyapi "tadfuq/rag-service/internal/api"
+	"tadfuq/rag-service/internal/config"
+	legacydb "tadfuq/rag-service/internal/db"
+	"tadfuq/rag-service/internal/embeddings"
+	"tadfuq/rag-service/internal/llm"
+	legacyrag "tadfuq/rag-service/internal/rag"
 
 	// ── Tadfuq RAG Phase 1 (tenant-scoped, clean arch) ───────────
-	ragdomain "github.com/rag-service/internal/domain/rag"
-	infradb "github.com/rag-service/internal/infrastructure/db"
-	infraemb "github.com/rag-service/internal/infrastructure/embeddings"
-	infrallm "github.com/rag-service/internal/infrastructure/llm"
-	infraproc "github.com/rag-service/internal/infrastructure/processor"
-	raghttp "github.com/rag-service/internal/interfaces/http/rag"
+	ragdomain "tadfuq/rag-service/internal/domain/rag"
+	infradb "tadfuq/rag-service/internal/infrastructure/db"
+	infraemb "tadfuq/rag-service/internal/infrastructure/embeddings"
+	infrallm "tadfuq/rag-service/internal/infrastructure/llm"
+	infraproc "tadfuq/rag-service/internal/infrastructure/processor"
+	raghttp "tadfuq/rag-service/internal/interfaces/http/rag"
 
 	// ── Tadfuq Insights Engine (deterministic, no LLM) ────────────
-	insightsdomain "github.com/rag-service/internal/domain/insights"
-	insightshttp "github.com/rag-service/internal/interfaces/http/insights"
+	insightsdomain "tadfuq/rag-service/internal/domain/insights"
+	insightshttp "tadfuq/rag-service/internal/interfaces/http/insights"
 )
 
 func main() {
@@ -63,8 +63,32 @@ func main() {
 	defer ragStore.Close()
 	log.Println("✓ Tadfuq RAG store connected")
 
-	ragEmbedder := infraemb.NewVoyageEmbedder(cfg.VoyageAPIKey)
-	ragLLM := infrallm.NewClaudeLLM(cfg.AnthropicAPIKey)
+	// Initialize embedder based on configured provider
+	ragEmbedder, err := infraemb.NewEmbedder(
+		cfg.EmbeddingProvider,
+		cfg.VoyageAPIKey,
+		cfg.OpenAIAPIKey,
+	)
+	if err != nil {
+		log.Fatalf("Failed to initialize embedder: %v", err)
+	}
+	log.Printf("✓ Embedding provider: %s", cfg.EmbeddingProvider)
+
+	// Initialize LLM based on provider
+	var ragLLM ragdomain.LLM
+	llmProvider := os.Getenv("LLM_PROVIDER")
+	if llmProvider == "openai" {
+		openaiKey := os.Getenv("OPENAI_API_KEY")
+		if openaiKey == "" {
+			log.Fatal("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
+		}
+		ragLLM = infrallm.NewOpenAILLM(openaiKey, "gpt-4o-mini", 2000)
+		log.Println("✓ Using OpenAI GPT-4 for LLM")
+	} else {
+		ragLLM = infrallm.NewClaudeLLM(cfg.AnthropicAPIKey)
+		log.Println("✓ Using Anthropic Claude for LLM")
+	}
+
 	ragParser := infraproc.NewDocumentParser(ragLLM)
 
 	ragService := ragdomain.NewService(

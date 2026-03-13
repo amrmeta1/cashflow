@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"tadfuq/rag-service/internal/models"
+
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	pgvector "github.com/pgvector/pgvector-go"
-	"github.com/rag-service/internal/models"
 )
 
 // DB wraps the sql.DB connection
@@ -27,8 +28,8 @@ func New(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("pinging db: %w", err)
 	}
 
-	// Register pgvector types
-	pgvector.RegisterTypes(conn)
+	// pgvector types are automatically registered in v0.2.2+
+	// No explicit registration needed
 
 	conn.SetMaxOpenConns(25)
 	conn.SetMaxIdleConns(5)

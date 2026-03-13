@@ -45,9 +45,9 @@ type ChunkRepository interface {
 	// embedding, restricted to tenantID.
 	SearchSimilar(
 		ctx context.Context,
-		tenantID  uuid.UUID,
+		tenantID uuid.UUID,
 		embedding []float32,
-		topK      int,
+		topK int,
 	) ([]ScoredChunk, error)
 }
 
@@ -82,11 +82,15 @@ type LLM interface {
 	// Answer produces an answer grounded in contextText.
 	// history is the conversation so far (most recent last).
 	Answer(
-		ctx         context.Context,
-		question    string,
+		ctx context.Context,
+		question string,
 		contextText string,
-		history     []LLMMessage,
+		history []LLMMessage,
 	) (string, error)
+
+	// ExtractFromFile extracts text from images/PDFs using vision capabilities.
+	// Used by DocumentParser for image-based documents.
+	ExtractFromFile(ctx context.Context, data []byte, mediaType, hint string) (string, error)
 }
 
 // Parser extracts text content from binary document files.

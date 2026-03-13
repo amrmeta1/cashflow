@@ -24,7 +24,7 @@ type Client struct {
 // New creates a new Claude client
 func New(apiKey string) *Client {
 	c := anthropic.NewClient(option.WithAPIKey(apiKey))
-	return &Client{client: &c, model: ModelSonnet}
+	return &Client{client: c, model: ModelSonnet}
 }
 
 // ExtractFromFile uses Claude to extract text from a file (PDF, image)
@@ -37,22 +37,22 @@ func (c *Client) ExtractFromFile(ctx context.Context, data []byte, mediaType str
 	if mediaType == "application/pdf" {
 		// PDF as document block
 		contentBlock = anthropic.DocumentBlockParam{
-			Type: "document",
-			Source: anthropic.Base64PDFSourceParam{
-				Type:      "base64",
-				MediaType: "application/pdf",
-				Data:      encoded,
-			},
+			Type: anthropic.F(anthropic.DocumentBlockParamTypeDocument),
+			Source: anthropic.F(anthropic.Base64PDFSourceParam{
+				Type:      anthropic.F(anthropic.Base64PDFSourceTypeBase64),
+				MediaType: anthropic.F(anthropic.Base64PDFSourceMediaTypeApplicationPDF),
+				Data:      anthropic.F(encoded),
+			}),
 		}
 	} else {
 		// Image block
 		contentBlock = anthropic.ImageBlockParam{
-			Type: "image",
-			Source: anthropic.Base64ImageSourceParam{
-				Type:      "base64",
-				MediaType: anthropic.Base64ImageSourceMediaType(mediaType),
-				Data:      encoded,
-			},
+			Type: anthropic.F(anthropic.ImageBlockParamTypeImage),
+			Source: anthropic.F(anthropic.ImageBlockParamSource{
+				Type:      anthropic.F(anthropic.ImageBlockParamSourceTypeBase64),
+				MediaType: anthropic.F(anthropic.ImageBlockParamSourceMediaType(mediaType)),
+				Data:      anthropic.F(encoded),
+			}),
 		}
 	}
 
@@ -65,8 +65,8 @@ func (c *Client) ExtractFromFile(ctx context.Context, data []byte, mediaType str
 				Content: anthropic.F([]anthropic.ContentBlockParamUnion{
 					contentBlock,
 					anthropic.TextBlockParam{
-						Type: "text",
-						Text: anthropic.String(hint),
+						Type: anthropic.F(anthropic.TextBlockParamTypeText),
+						Text: anthropic.F(hint),
 					},
 				}),
 			},
@@ -113,7 +113,10 @@ Context from financial documents:
 		messages = append(messages, anthropic.MessageParam{
 			Role: anthropic.F(role),
 			Content: anthropic.F([]anthropic.ContentBlockParamUnion{
-				anthropic.TextBlockParam{Type: "text", Text: anthropic.String(h.Content)},
+				anthropic.TextBlockParam{
+					Type: anthropic.F(anthropic.TextBlockParamTypeText),
+					Text: anthropic.F(h.Content),
+				},
 			}),
 		})
 	}
@@ -122,7 +125,10 @@ Context from financial documents:
 	messages = append(messages, anthropic.MessageParam{
 		Role: anthropic.F(anthropic.MessageParamRoleUser),
 		Content: anthropic.F([]anthropic.ContentBlockParamUnion{
-			anthropic.TextBlockParam{Type: "text", Text: anthropic.String(question)},
+			anthropic.TextBlockParam{
+				Type: anthropic.F(anthropic.TextBlockParamTypeText),
+				Text: anthropic.F(question),
+			},
 		}),
 	})
 
@@ -130,7 +136,10 @@ Context from financial documents:
 		Model:     anthropic.F(c.model),
 		MaxTokens: anthropic.F(int64(MaxTokens)),
 		System: anthropic.F([]anthropic.TextBlockParam{
-			{Type: "text", Text: anthropic.String(systemPrompt)},
+			{
+				Type: anthropic.F(anthropic.TextBlockParamTypeText),
+				Text: anthropic.F(systemPrompt),
+			},
 		}),
 		Messages: anthropic.F(messages),
 	})
@@ -170,7 +179,10 @@ Respond with ONLY valid JSON, no markdown code blocks.`
 			{
 				Role: anthropic.F(anthropic.MessageParamRoleUser),
 				Content: anthropic.F([]anthropic.ContentBlockParamUnion{
-					anthropic.TextBlockParam{Type: "text", Text: anthropic.String(prompt)},
+					anthropic.TextBlockParam{
+						Type: anthropic.F(anthropic.TextBlockParamTypeText),
+						Text: anthropic.F(prompt),
+					},
 				}),
 			},
 		}),

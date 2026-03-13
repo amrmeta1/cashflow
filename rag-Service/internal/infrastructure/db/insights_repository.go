@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rag-service/internal/domain/insights"
+	"tadfuq/rag-service/internal/domain/insights"
 )
 
 // InsightsStore implements domain/insights.InsightsRepository against PostgreSQL.
@@ -51,7 +51,7 @@ func (s *InsightsStore) GetTransactions(
 		SELECT id, tenant_id, txn_date, amount, txn_type,
 		       description, category, balance_after, COALESCE(reference, '')
 		FROM   bank_transactions
-		WHERE  tenant_id = $1          -- tenant isolation
+		WHERE  tenant_id = $1          /* tenant isolation */
 		  AND  txn_date  BETWEEN $2 AND $3
 		ORDER  BY txn_date DESC`
 
@@ -91,7 +91,7 @@ func (s *InsightsStore) GetLatestForecast(
 	err := s.db.QueryRowContext(ctx, `
 		SELECT forecast_run_id
 		FROM   forecast_entries
-		WHERE  tenant_id = $1          -- tenant isolation
+		WHERE  tenant_id = $1          /* tenant isolation */
 		ORDER  BY created_at DESC
 		LIMIT  1`,
 		tenantID,
@@ -110,7 +110,7 @@ func (s *InsightsStore) GetLatestForecast(
 		       forecasted_inflow, forecasted_outflow, forecasted_net,
 		       forecasted_ending_balance
 		FROM   forecast_entries
-		WHERE  tenant_id       = $1   -- tenant isolation
+		WHERE  tenant_id       = $1   /* tenant isolation */
 		  AND  forecast_run_id = $2
 		ORDER  BY week_number ASC`
 
@@ -147,7 +147,7 @@ func (s *InsightsStore) GetActiveAlerts(
 		SELECT id, tenant_id, alert_type, severity, title, message,
 		       details, triggered_at, resolved_at, is_active
 		FROM   alerts
-		WHERE  tenant_id = $1   -- tenant isolation
+		WHERE  tenant_id = $1   /* tenant isolation */
 		  AND  is_active = TRUE
 		ORDER  BY triggered_at DESC`
 
