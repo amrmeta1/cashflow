@@ -1,24 +1,24 @@
-package http
+package handlers
 
 import (
 	"net/http"
 	"strconv"
 
-	"github.com/finch-co/cashflow/internal/domain"
+	"github.com/finch-co/cashflow/internal/models"
 )
 
 type AuditHandler struct {
-	audit domain.AuditLogRepository
+	repo models.AuditLogRepository
 }
 
-func NewAuditHandler(audit domain.AuditLogRepository) *AuditHandler {
-	return &AuditHandler{audit: audit}
+func NewAuditHandler(repo models.AuditLogRepository) *AuditHandler {
+	return &AuditHandler{repo: repo}
 }
 
 func (h *AuditHandler) ListByTenant(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
-		writeErrorResponse(w, domain.ErrTenantRequired)
+		WriteErrorResponse(w, models.ErrTenantRequired)
 		return
 	}
 
@@ -31,11 +31,11 @@ func (h *AuditHandler) ListByTenant(w http.ResponseWriter, r *http.Request) {
 		limit = 200
 	}
 
-	logs, total, err := h.audit.ListByTenant(r.Context(), tenantID, limit, offset)
+	logs, total, err := h.repo.ListByTenant(r.Context(), tenantID, limit, offset)
 	if err != nil {
-		writeErrorResponse(w, err)
+		WriteErrorResponse(w, err)
 		return
 	}
 
-	writeJSONList(w, http.StatusOK, logs, total, limit, offset)
+	WriteJSONList(w, http.StatusOK, logs, total, limit, offset)
 }
