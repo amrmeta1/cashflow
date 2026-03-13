@@ -1,14 +1,14 @@
-package db
+package repositories
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/finch-co/cashflow/internal/models"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/finch-co/cashflow/internal/domain"
 )
 
 type BankTransactionRepo struct {
@@ -19,9 +19,9 @@ func NewBankTransactionRepo(pool *pgxpool.Pool) *BankTransactionRepo {
 	return &BankTransactionRepo{pool: pool}
 }
 
-var _ domain.TransactionRepository = (*BankTransactionRepo)(nil)
+var _ models.TransactionRepository = (*BankTransactionRepo)(nil)
 
-func (r *BankTransactionRepo) BulkUpsert(ctx context.Context, tenantID uuid.UUID, txns []domain.BankTransaction) (int, error) {
+func (r *BankTransactionRepo) BulkUpsert(ctx context.Context, tenantID uuid.UUID, txns []models.BankTransaction) (int, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("beginning tx: %w", err)
@@ -31,11 +31,13 @@ func (r *BankTransactionRepo) BulkUpsert(ctx context.Context, tenantID uuid.UUID
 	inserted := 0
 	for _, t := range txns {
 		tag, err := tx.Exec(ctx, `
-			INSERT INTO bank_transactions (tenant_id, account_id, txn_date, amount, currency, description, counterparty, category, hash, raw_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			INSERT INTO bank_transactions (
+				tenant_id, account_id, txn_date, amount, currency,
+				description, counterparty, category, hash, raw_id, vendor_id
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			ON CONFLICT (tenant_id, hash) DO NOTHING`,
 			tenantID, t.AccountID, t.TxnDate, t.Amount, t.Currency,
-			t.Description, t.Counterparty, t.Category, t.Hash, t.RawID,
+			t.Description, t.Counterparty, t.Category, t.Hash, t.RawID, t.VendorID,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("upserting transaction: %w", err)
@@ -51,7 +53,7 @@ func (r *BankTransactionRepo) BulkUpsert(ctx context.Context, tenantID uuid.UUID
 	return inserted, nil
 }
 
-func (r *BankTransactionRepo) List(ctx context.Context, filter domain.TransactionFilter) ([]domain.BankTransaction, int, error) {
+func (r *BankTransactionRepo) List(ctx context.Context, filter models.TransactionFilter) ([]models.BankTransaction, int, error) {
 	// Build WHERE clause dynamically
 	args := []any{filter.TenantID}
 	where := "WHERE tenant_id = $1"
@@ -104,9 +106,9 @@ func (r *BankTransactionRepo) List(ctx context.Context, filter domain.Transactio
 	}
 	defer rows.Close()
 
-	var txns []domain.BankTransaction
+	var txns []models.BankTransaction
 	for rows.Next() {
-		var t domain.BankTransaction
+		var t models.BankTransaction
 		var txnDate time.Time
 		if err := rows.Scan(
 			&t.ID, &t.TenantID, &t.AccountID, &txnDate,
@@ -171,7 +173,7 @@ func (r *BankTransactionRepo) GetCurrentCash(ctx context.Context, tenantID uuid.
 }
 
 // GetLastNDaysSummary returns inflow/outflow totals and daily averages over the trailing N-day window.
-func (r *BankTransactionRepo) GetLastNDaysSummary(ctx context.Context, tenantID uuid.UUID, days int) (*domain.CashSummary, error) {
+func (r *BankTransactionRepo) GetLastNDaysSummary(ctx context.Context, tenantID uuid.UUID, days int) (*models.CashSummary, error) {
 	if days <= 0 {
 		return nil, fmt.Errorf("days must be greater than zero")
 	}
@@ -179,7 +181,7 @@ func (r *BankTransactionRepo) GetLastNDaysSummary(ctx context.Context, tenantID 
 	endDate := time.Now().UTC()
 	startDate := endDate.AddDate(0, 0, -days)
 
-	summary := &domain.CashSummary{}
+	summary := &models.CashSummary{}
 	err := r.pool.QueryRow(ctx, `
 		SELECT
 			COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS total_inflow,

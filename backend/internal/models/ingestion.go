@@ -1,4 +1,4 @@
-package domain
+package models
 
 import (
 	"context"
@@ -62,6 +62,7 @@ type BankTransaction struct {
 	Category     string     `json:"category"`
 	Hash         string     `json:"hash"`
 	RawID        *uuid.UUID `json:"raw_id,omitempty"`
+	VendorID     *uuid.UUID `json:"vendor_id,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 }
 
@@ -149,11 +150,11 @@ type CashPositionTotalByCurrency struct {
 
 // CashPositionResponse is the response for GET /tenants/{id}/cash-position.
 type CashPositionResponse struct {
-	TenantID     string                     `json:"tenantId"`
-	AsOf         string                     `json:"asOf"` // YYYY-MM-DD
-	CurrencyMode string                     `json:"currencyMode"`
-	Accounts     []CashPositionAccount      `json:"accounts"`
-	Totals       CashPositionTotals         `json:"totals"`
+	TenantID     string                `json:"tenantId"`
+	AsOf         string                `json:"asOf"` // YYYY-MM-DD
+	CurrencyMode string                `json:"currencyMode"`
+	Accounts     []CashPositionAccount `json:"accounts"`
+	Totals       CashPositionTotals    `json:"totals"`
 }
 
 // CashPositionTotals holds totals by currency.
