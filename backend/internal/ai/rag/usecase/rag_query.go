@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/finch-co/cashflow/internal/rag/adapter/llm"
-	"github.com/finch-co/cashflow/internal/rag/domain"
-	"github.com/finch-co/cashflow/internal/ragclient"
+	llm "github.com/finch-co/cashflow/internal/ai/claude"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
+	// "github.com/finch-co/cashflow/internal/ragclient" // TODO: Package deleted in refactoring
 )
 
 // RagQueryUseCase handles RAG query workflow
@@ -19,7 +19,7 @@ type RagQueryUseCase struct {
 	queryRepo     domain.QueryRepository
 	searchUseCase *SearchChunksUseCase
 	llmClient     llm.LLMClient
-	ragClient     *ragclient.RagClient
+	// ragClient     *ragclient.RagClient // TODO: Package deleted in refactoring
 }
 
 // NewRagQueryUseCase creates a new RAG query use case
@@ -28,14 +28,14 @@ func NewRagQueryUseCase(
 	queryRepo domain.QueryRepository,
 	searchUseCase *SearchChunksUseCase,
 	llmClient llm.LLMClient,
-	ragClient *ragclient.RagClient,
+	// ragClient *ragclient.RagClient, // TODO: Package deleted in refactoring
 ) *RagQueryUseCase {
 	return &RagQueryUseCase{
 		chunkRepo:     chunkRepo,
 		queryRepo:     queryRepo,
 		searchUseCase: searchUseCase,
 		llmClient:     llmClient,
-		ragClient:     ragClient,
+		// ragClient:     ragClient, // TODO: Package deleted in refactoring
 	}
 }
 
@@ -54,59 +54,68 @@ type RagQueryOutput struct {
 
 // Execute performs a RAG query
 func (uc *RagQueryUseCase) Execute(ctx context.Context, input RagQueryInput) (*RagQueryOutput, error) {
+	// TODO: External RAG client removed during refactoring
 	// If external RAG client is configured, use it
-	if uc.ragClient != nil {
-		return uc.executeExternal(ctx, input)
-	}
+	// if uc.ragClient != nil {
+	// 	return uc.executeExternal(ctx, input)
+	// }
 
-	// Otherwise, use embedded implementation
+	// Use embedded implementation
 	return uc.executeEmbedded(ctx, input)
 }
 
 // executeExternal calls the external RAG service
+// TODO: Disabled - ragclient package removed during refactoring
 func (uc *RagQueryUseCase) executeExternal(ctx context.Context, input RagQueryInput) (*RagQueryOutput, error) {
 	// Call external service
-	resp, err := uc.ragClient.Query(ctx, ragclient.QueryRequest{
-		TenantID: input.TenantID.String(),
-		Question: input.Question,
-	})
+	// resp, err := uc.ragClient.Query(ctx, ragclient.QueryRequest{
+	// 	TenantID: input.TenantID.String(),
+	// 	Question: input.Question,
+	// })
+	var err error
+	_ = err
 
-	if err != nil {
-		// Graceful fallback - return friendly message
-		return &RagQueryOutput{
-			Answer:    "AI assistant temporarily unavailable.",
-			Citations: []domain.Citation{},
-		}, nil
-	}
+	// if err != nil {
+	// 	// Graceful fallback - return friendly message
+	// 	return &RagQueryOutput{
+	// 		Answer:    "AI assistant temporarily unavailable.",
+	// 		Citations: []domain.Citation{},
+	// 	}, nil
+	// }
 
-	// Convert response to domain types
-	citations := make([]domain.Citation, len(resp.Citations))
-	for i, c := range resp.Citations {
-		docID, _ := uuid.Parse(c.DocumentID)
-		chunkID, _ := uuid.Parse(c.ChunkID)
-		citations[i] = domain.Citation{
-			DocumentID: docID,
-			ChunkID:    chunkID,
-			Content:    c.Content,
-		}
-	}
+	// // Convert response to domain types
+	// citations := make([]domain.Citation, len(resp.Citations))
+	// for i, c := range resp.Citations {
+	// 	docID, _ := uuid.Parse(c.DocumentID)
+	// 	chunkID, _ := uuid.Parse(c.ChunkID)
+	// 	citations[i] = domain.Citation{
+	// 		DocumentID: docID,
+	// 		ChunkID:    chunkID,
+	// 		Content:    c.Content,
+	// 	}
+	// }
 
-	// Store query (best effort)
-	citationsJSON, _ := json.Marshal(citations)
-	citationsMap := make(map[string]any)
-	_ = json.Unmarshal(citationsJSON, &citationsMap)
+	// // Store query (best effort)
+	// citationsJSON, _ := json.Marshal(citations)
+	// citationsMap := make(map[string]any)
+	// _ = json.Unmarshal(citationsJSON, &citationsMap)
 
-	_, _ = uc.queryRepo.Create(ctx, domain.CreateQueryInput{
-		TenantID:  input.TenantID,
-		UserID:    input.UserID,
-		Question:  input.Question,
-		Answer:    resp.Answer,
-		Citations: citationsMap,
-	})
+	// _, _ = uc.queryRepo.Create(ctx, domain.CreateQueryInput{
+	// 	TenantID:  input.TenantID,
+	// 	UserID:    input.UserID,
+	// 	Question:  input.Question,
+	// 	Answer:    resp.Answer,
+	// 	Citations: citationsMap,
+	// })
+
+	// return &RagQueryOutput{
+	// 	Answer:    resp.Answer,
+	// 	Citations: citations,
+	// }, nil
 
 	return &RagQueryOutput{
-		Answer:    resp.Answer,
-		Citations: citations,
+		Answer:    "External RAG client disabled.",
+		Citations: []domain.Citation{},
 	}, nil
 }
 

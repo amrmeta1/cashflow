@@ -8,8 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
 )
 
 type DocumentRepo struct {
@@ -21,16 +22,37 @@ func NewDocumentRepo(pool *pgxpool.Pool) *DocumentRepo {
 }
 
 func (r *DocumentRepo) Create(ctx context.Context, input domain.CreateDocumentInput) (*domain.Document, error) {
+	log.Debug().
+		Str("tenant_id", input.TenantID.String()).
+		Str("title", input.Title).
+		Str("type", string(input.Type)).
+		Str("operation", "create_document").
+		Msg("Starting document creation in database")
+
 	var doc domain.Document
-	err := r.pool.QueryRow(ctx,
-		`INSERT INTO documents (tenant_id, title, type, file_name, mime_type, source, uploaded_by)
+	query := `INSERT INTO documents (tenant_id, title, type, file_name, mime_type, source, uploaded_by)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 RETURNING id, tenant_id, title, type, file_name, mime_type, source, uploaded_by, status, created_at`,
+		 RETURNING id, tenant_id, title, type, file_name, mime_type, source, uploaded_by, status, created_at`
+
+	err := r.pool.QueryRow(ctx, query,
 		input.TenantID, input.Title, input.Type, input.FileName, input.MimeType, input.Source, input.UploadedBy,
 	).Scan(&doc.ID, &doc.TenantID, &doc.Title, &doc.Type, &doc.FileName, &doc.MimeType, &doc.Source, &doc.UploadedBy, &doc.Status, &doc.CreatedAt)
+
 	if err != nil {
+		log.Error().
+			Err(err).
+			Str("tenant_id", input.TenantID.String()).
+			Str("query", query).
+			Msg("Failed to create document in database")
 		return nil, fmt.Errorf("creating document: %w", err)
 	}
+
+	log.Info().
+		Str("tenant_id", input.TenantID.String()).
+		Str("document_id", doc.ID.String()).
+		Str("title", doc.Title).
+		Msg("Document created successfully in database")
+
 	return &doc, nil
 }
 

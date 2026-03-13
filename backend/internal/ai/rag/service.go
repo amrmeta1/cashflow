@@ -4,14 +4,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/rag/adapter/db"
-	"github.com/finch-co/cashflow/internal/rag/adapter/embeddings"
-	"github.com/finch-co/cashflow/internal/rag/adapter/http"
-	"github.com/finch-co/cashflow/internal/rag/adapter/llm"
-	"github.com/finch-co/cashflow/internal/rag/adapter/parser"
-	"github.com/finch-co/cashflow/internal/rag/adapter/storage"
-	"github.com/finch-co/cashflow/internal/rag/domain"
-	"github.com/finch-co/cashflow/internal/rag/usecase"
+	llm "github.com/finch-co/cashflow/internal/ai/claude"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/embeddings"
+	http "github.com/finch-co/cashflow/internal/ai/rag/handlers"
+	parser "github.com/finch-co/cashflow/internal/ai/rag/parsers"
+	db "github.com/finch-co/cashflow/internal/ai/rag/repositories"
+	"github.com/finch-co/cashflow/internal/ai/rag/storage"
+	"github.com/finch-co/cashflow/internal/ai/rag/usecase"
 )
 
 // Service represents the RAG service with all dependencies
@@ -106,9 +106,9 @@ func NewService(pool *pgxpool.Pool, openaiAPIKey string) *Service {
 	// Initialize RAG query use case
 	var ragQueryUseCase *usecase.RagQueryUseCase
 	if searchUseCase != nil && llmClient != nil {
-		ragQueryUseCase = usecase.NewRagQueryUseCase(chunkRepo, queryRepo, searchUseCase, llmClient, nil)
+		ragQueryUseCase = usecase.NewRagQueryUseCase(chunkRepo, queryRepo, searchUseCase, llmClient)
 	} else {
-		ragQueryUseCase = usecase.NewRagQueryUseCase(chunkRepo, queryRepo, nil, nil, nil)
+		ragQueryUseCase = usecase.NewRagQueryUseCase(chunkRepo, queryRepo, nil, nil)
 	}
 
 	// Initialize HTTP handlers

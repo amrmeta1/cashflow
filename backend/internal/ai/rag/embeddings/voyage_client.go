@@ -37,7 +37,7 @@ func NewVoyageClient(apiKey string) *VoyageClient {
 
 // voyageRequest represents the Voyage API request payload
 type voyageRequest struct {
-	Input     interface{} `json:"input"`      // string or []string
+	Input     interface{} `json:"input"` // string or []string
 	Model     string      `json:"model"`
 	InputType string      `json:"input_type"` // "document" or "query"
 }

@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/rag/adapter/parser"
-	"github.com/finch-co/cashflow/internal/rag/adapter/storage"
-	"github.com/finch-co/cashflow/internal/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/parsers"
+	"github.com/finch-co/cashflow/internal/ai/rag/storage"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
 )
 
 // ChunkDocumentUseCase handles document chunking workflow

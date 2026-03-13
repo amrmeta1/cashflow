@@ -1,7 +1,7 @@
 package router
 
 import (
-	"github.com/finch-co/cashflow/internal/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
 	"github.com/google/uuid"
 )
 

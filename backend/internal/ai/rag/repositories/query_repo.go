@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/finch-co/cashflow/internal/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
 )
 
 type QueryRepo struct {
@@ -29,12 +29,19 @@ func (r *QueryRepo) Create(ctx context.Context, input domain.CreateQueryInput) (
 
 	var query domain.RagQuery
 	var citBytes []byte
+
+	// Default status to 'completed' if not provided
+	status := input.Status
+	if status == "" {
+		status = "completed"
+	}
+
 	err = r.pool.QueryRow(ctx,
-		`INSERT INTO rag_queries (tenant_id, user_id, question, answer, citations)
-		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING id, tenant_id, user_id, question, answer, citations, created_at`,
-		input.TenantID, input.UserID, input.Question, input.Answer, citations,
-	).Scan(&query.ID, &query.TenantID, &query.UserID, &query.Question, &query.Answer, &citBytes, &query.CreatedAt)
+		`INSERT INTO rag_queries (tenant_id, user_id, question, answer, citations, provider, latency_ms, tokens_used, status)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 RETURNING id, tenant_id, user_id, question, answer, citations, provider, latency_ms, tokens_used, status, created_at`,
+		input.TenantID, input.UserID, input.Question, input.Answer, citations, input.Provider, input.LatencyMs, input.TokensUsed, status,
+	).Scan(&query.ID, &query.TenantID, &query.UserID, &query.Question, &query.Answer, &citBytes, &query.Provider, &query.LatencyMs, &query.TokensUsed, &query.Status, &query.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("creating query: %w", err)
 	}
@@ -46,10 +53,10 @@ func (r *QueryRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*domai
 	var query domain.RagQuery
 	var citBytes []byte
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, tenant_id, user_id, question, answer, citations, created_at
+		`SELECT id, tenant_id, user_id, question, answer, citations, provider, latency_ms, tokens_used, status, created_at
 		 FROM rag_queries WHERE id = $1 AND tenant_id = $2`,
 		id, tenantID,
-	).Scan(&query.ID, &query.TenantID, &query.UserID, &query.Question, &query.Answer, &citBytes, &query.CreatedAt)
+	).Scan(&query.ID, &query.TenantID, &query.UserID, &query.Question, &query.Answer, &citBytes, &query.Provider, &query.LatencyMs, &query.TokensUsed, &query.Status, &query.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("query not found")
 	}
@@ -71,7 +78,7 @@ func (r *QueryRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit,
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, tenant_id, user_id, question, answer, citations, created_at
+		`SELECT id, tenant_id, user_id, question, answer, citations, provider, latency_ms, tokens_used, status, created_at
 		 FROM rag_queries WHERE tenant_id = $1
 		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		tenantID, limit, offset,
@@ -85,7 +92,7 @@ func (r *QueryRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit,
 	for rows.Next() {
 		var query domain.RagQuery
 		var citBytes []byte
-		if err := rows.Scan(&query.ID, &query.TenantID, &query.UserID, &query.Question, &query.Answer, &citBytes, &query.CreatedAt); err != nil {
+		if err := rows.Scan(&query.ID, &query.TenantID, &query.UserID, &query.Question, &query.Answer, &citBytes, &query.Provider, &query.LatencyMs, &query.TokensUsed, &query.Status, &query.CreatedAt); err != nil {
 			return nil, 0, fmt.Errorf("scanning query: %w", err)
 		}
 		_ = json.Unmarshal(citBytes, &query.Citations)

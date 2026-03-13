@@ -23,6 +23,11 @@ type LocalFileStorage struct {
 
 // NewLocalFileStorage creates a new local file storage
 func NewLocalFileStorage(basePath string) *LocalFileStorage {
+	// Ensure base directory exists
+	if err := os.MkdirAll(basePath, 0755); err != nil {
+		// Log error but don't fail - directory might be created later
+		fmt.Printf("Warning: failed to create storage directory %s: %v\n", basePath, err)
+	}
 	return &LocalFileStorage{
 		basePath: basePath,
 	}

@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	claudeAPIURL     = "https://api.anthropic.com/v1/messages"
-	claudeModel      = "claude-3-5-sonnet-20241022"
-	claudeVersion    = "2023-06-01"
-	claudeTimeout    = 60 * time.Second
-	claudeMaxTokens  = 1024
+	claudeAPIURL    = "https://api.anthropic.com/v1/messages"
+	claudeModel     = "claude-3-5-sonnet-20241022"
+	claudeVersion   = "2023-06-01"
+	claudeTimeout   = 60 * time.Second
+	claudeMaxTokens = 1024
 )
 
 // ClaudeClient implements LLMClient using Anthropic Claude API

@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/rag/adapter/embeddings"
-	"github.com/finch-co/cashflow/internal/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/embeddings"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
 )
 
 // SearchChunksUseCase handles semantic search over document chunks

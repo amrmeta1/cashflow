@@ -5,37 +5,38 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/finch-co/cashflow/internal/models"
+
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/domain"
-	"github.com/finch-co/cashflow/internal/rag/adapter/llm"
-	ragDomain "github.com/finch-co/cashflow/internal/rag/domain"
-	ragUsecase "github.com/finch-co/cashflow/internal/rag/usecase"
-	"github.com/finch-co/cashflow/internal/ragclient"
-	"github.com/finch-co/cashflow/internal/usecase"
+	llm "github.com/finch-co/cashflow/internal/ai/claude"
+	ragDomain "github.com/finch-co/cashflow/internal/ai/rag/domain"
+	ragUsecase "github.com/finch-co/cashflow/internal/ai/rag/usecase"
+	"github.com/finch-co/cashflow/internal/liquidity"
+	// "github.com/finch-co/cashflow/internal/ai/ragclient" // TODO: Package deleted in refactoring
 )
 
 // HybridRouter intelligently routes questions to forecast, RAG, hybrid, or advice engines
 type HybridRouter struct {
-	forecastUC     *usecase.ForecastUseCase
-	ragClient      *ragclient.RagClient
+	forecastUC *liquidity.ForecastUseCase
+	// ragClient      *struct{}RagClient // TODO: Package deleted in refactoring
 	ragUseCase     *ragUsecase.RagQueryUseCase
 	llmClient      llm.LLMClient
-	decisionEngine *usecase.DecisionEngine
+	decisionEngine *liquidity.DecisionEngine
 }
 
 // NewHybridRouter creates a new hybrid router
 func NewHybridRouter(
-	forecastUC *usecase.ForecastUseCase,
-	ragClient *ragclient.RagClient,
+	forecastUC *liquidity.ForecastUseCase,
+	// ragClient *struct{}RagClient, // TODO: Package deleted in refactoring
 	ragUseCase *ragUsecase.RagQueryUseCase,
 	llmClient llm.LLMClient,
-	decisionEngine *usecase.DecisionEngine,
+	decisionEngine *liquidity.DecisionEngine,
 ) *HybridRouter {
 	return &HybridRouter{
-		forecastUC:     forecastUC,
-		ragClient:      ragClient,
+		forecastUC: forecastUC,
+		// ragClient:      ragClient, // TODO: Package deleted in refactoring
 		ragUseCase:     ragUseCase,
 		llmClient:      llmClient,
 		decisionEngine: decisionEngine,
@@ -102,25 +103,26 @@ func (r *HybridRouter) routeToForecast(ctx context.Context, input RouterInput, c
 func (r *HybridRouter) routeToRAG(ctx context.Context, input RouterInput, confidence float64, reason string) (*RouterOutput, error) {
 	log.Info().Str("tenant_id", input.TenantID.String()).Msg("Routing to RAG engine")
 
+	// TODO: External RAG client disabled - package removed during refactoring
 	// Try external RAG client first
-	if r.ragClient != nil {
-		resp, err := r.ragClient.Query(ctx, ragclient.QueryRequest{
-			TenantID: input.TenantID.String(),
-			Question: input.Question,
-		})
-		if err == nil {
-			return &RouterOutput{
-				Answer:    resp.Answer,
-				Citations: convertExternalCitations(resp.Citations),
-				Metadata: RouteMetadata{
-					Route:      RouteTypeRAG,
-					Confidence: confidence,
-					Reason:     reason,
-				},
-			}, nil
-		}
-		log.Warn().Err(err).Msg("External RAG client failed, falling back to embedded")
-	}
+	// if r.ragClient != nil {
+	// 	resp, err := r.ragClient.Query(ctx, struct{}{
+	// 		TenantID: input.TenantID.String(),
+	// 		Question: input.Question,
+	// 	})
+	// 	if err == nil {
+	// 		return &RouterOutput{
+	// 			Answer:    resp.Answer,
+	// 			Citations: nil,
+	// 			Metadata: RouteMetadata{
+	// 				Route:      RouteTypeRAG,
+	// 				Confidence: confidence,
+	// 				Reason:     reason,
+	// 			},
+	// 		}, nil
+	// 	}
+	// 	log.Warn().Err(err).Msg("External RAG client failed, falling back to embedded")
+	// }
 
 	// Fallback to embedded RAG
 	if r.ragUseCase != nil {
@@ -174,18 +176,19 @@ func (r *HybridRouter) routeToHybrid(ctx context.Context, input RouterInput, con
 	var ragAnswer string
 	var citations []ragDomain.Citation
 
-	if r.ragClient != nil {
-		resp, err := r.ragClient.Query(ctx, ragclient.QueryRequest{
-			TenantID: input.TenantID.String(),
-			Question: input.Question,
-		})
-		if err == nil {
-			ragAnswer = resp.Answer
-			citations = convertExternalCitations(resp.Citations)
-		} else {
-			log.Warn().Err(err).Msg("External RAG failed in hybrid route")
-		}
-	}
+	// TODO: External RAG client disabled - package removed during refactoring
+	// if r.ragClient != nil {
+	// 	resp, err := r.ragClient.Query(ctx, struct{}{
+	// 		TenantID: input.TenantID.String(),
+	// 		Question: input.Question,
+	// 	})
+	// 	if err == nil {
+	// 		ragAnswer = resp.Answer
+	// 		citations = nil
+	// 	} else {
+	// 		log.Warn().Err(err).Msg("External RAG failed in hybrid route")
+	// 	}
+	// }
 
 	// Fallback to embedded RAG if external failed
 	if ragAnswer == "" && r.ragUseCase != nil {
@@ -270,7 +273,7 @@ func (r *HybridRouter) deterministicHybridFallback(forecastSummary, ragAnswer st
 }
 
 // formatForecastAnswer formats forecast data as a natural language answer
-func (r *HybridRouter) formatForecastAnswer(forecast *domain.ForecastResult, question string) string {
+func (r *HybridRouter) formatForecastAnswer(forecast *models.ForecastResult, question string) string {
 	if forecast == nil || len(forecast.Forecast) == 0 {
 		return "No forecast data available for this tenant."
 	}
@@ -289,7 +292,7 @@ func (r *HybridRouter) formatForecastAnswer(forecast *domain.ForecastResult, que
 }
 
 // formatForecastSummary creates a short forecast summary for hybrid synthesis
-func (r *HybridRouter) formatForecastSummary(forecast *domain.ForecastResult) string {
+func (r *HybridRouter) formatForecastSummary(forecast *models.ForecastResult) string {
 	if forecast == nil || len(forecast.Forecast) == 0 {
 		return ""
 	}
@@ -345,22 +348,6 @@ Provide a clear, professional answer that addresses the user's question.`
 	return fmt.Sprintf(template, question, forecastSection, ragSection)
 }
 
-// convertExternalCitations converts external RAG client citations to domain citations
-func convertExternalCitations(external []ragclient.Citation) []ragDomain.Citation {
-	citations := make([]ragDomain.Citation, len(external))
-	for i, c := range external {
-		// Parse UUIDs if possible, otherwise use zero UUID
-		docID, _ := parseUUID(c.DocumentID)
-		chunkID, _ := parseUUID(c.ChunkID)
-
-		citations[i] = ragDomain.Citation{
-			DocumentID: docID,
-			ChunkID:    chunkID,
-			Content:    c.Content,
-		}
-	}
-	return citations
-}
 
 // routeToAdvice handles advice/recommendation queries using Decision Engine
 func (r *HybridRouter) routeToAdvice(ctx context.Context, input RouterInput, confidence float64, reason string) (*RouterOutput, error) {
@@ -421,7 +408,7 @@ func (r *HybridRouter) routeToAdvice(ctx context.Context, input RouterInput, con
 }
 
 // synthesizeAdviceWithClaude generates natural language advice using Claude
-func (r *HybridRouter) synthesizeAdviceWithClaude(ctx context.Context, question string, actions []domain.TreasuryAction) (string, error) {
+func (r *HybridRouter) synthesizeAdviceWithClaude(ctx context.Context, question string, actions []models.TreasuryAction) (string, error) {
 	prompt := buildAdvicePrompt(question, actions)
 
 	resp, err := r.llmClient.Complete(ctx, llm.CompletionRequest{
@@ -439,7 +426,7 @@ func (r *HybridRouter) synthesizeAdviceWithClaude(ctx context.Context, question 
 }
 
 // deterministicAdviceFallback provides a deterministic response when Claude fails
-func (r *HybridRouter) deterministicAdviceFallback(actions []domain.TreasuryAction, confidence float64, reason string) *RouterOutput {
+func (r *HybridRouter) deterministicAdviceFallback(actions []models.TreasuryAction, confidence float64, reason string) *RouterOutput {
 	var answer strings.Builder
 	answer.WriteString("Based on current treasury data, here are the recommended actions:\n\n")
 
@@ -463,7 +450,7 @@ func (r *HybridRouter) deterministicAdviceFallback(actions []domain.TreasuryActi
 }
 
 // buildAdvicePrompt constructs the Claude prompt for advice synthesis
-func buildAdvicePrompt(question string, actions []domain.TreasuryAction) string {
+func buildAdvicePrompt(question string, actions []models.TreasuryAction) string {
 	const template = `You are a treasury AI advisor for a GCC-based company.
 
 The user asked: "%s"

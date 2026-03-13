@@ -1,6 +1,7 @@
 package http
 
 import (
+"fmt"
 	"encoding/json"
 	"net/http"
 
@@ -8,10 +9,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	ragDomain "github.com/finch-co/cashflow/internal/ai/rag/domain"
+	ragUsecase "github.com/finch-co/cashflow/internal/ai/rag/usecase"
 	"github.com/finch-co/cashflow/internal/ai/router"
-	domain "github.com/finch-co/cashflow/internal/domain"
-	ragDomain "github.com/finch-co/cashflow/internal/rag/domain"
-	ragUsecase "github.com/finch-co/cashflow/internal/rag/usecase"
+	"github.com/finch-co/cashflow/internal/api/handlers"
+	models "github.com/finch-co/cashflow/internal/models"
 )
 
 // RagHandler handles HTTP requests for RAG queries
@@ -44,9 +46,9 @@ func (h *RagHandler) RegisterRoutes(r chi.Router) {
 // Query handles RAG query requests
 func (h *RagHandler) Query(w http.ResponseWriter, r *http.Request) {
 	// Get tenant ID from context
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
-		writeErrorResponse(w, http.StatusBadRequest, "tenant_id required")
+		handlers.WriteErrorResponse(w, fmt.Errorf("tenant_id required"))
 		return
 	}
 
@@ -55,12 +57,12 @@ func (h *RagHandler) Query(w http.ResponseWriter, r *http.Request) {
 		Question string `json:"question"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "invalid request body")
+		handlers.WriteErrorResponse(w, fmt.Errorf("invalid request body"))
 		return
 	}
 
 	if req.Question == "" {
-		writeErrorResponse(w, http.StatusBadRequest, "question is required")
+		handlers.WriteErrorResponse(w, fmt.Errorf("question is required"))
 		return
 	}
 
@@ -72,7 +74,7 @@ func (h *RagHandler) Query(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			log.Error().Err(err).Msg("Hybrid router failed")
-			writeErrorResponse(w, http.StatusInternalServerError, "failed to process query")
+			handlers.WriteErrorResponse(w, fmt.Errorf("failed to process query"))
 			return
 		}
 
@@ -81,7 +83,7 @@ func (h *RagHandler) Query(w http.ResponseWriter, r *http.Request) {
 			Answer:    result.Answer,
 			Citations: result.Citations,
 		}
-		writeJSON(w, http.StatusOK, response)
+		handlers.WriteJSON(w, http.StatusOK, response)
 		return
 	}
 
@@ -92,19 +94,19 @@ func (h *RagHandler) Query(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("RAG query failed")
-		writeErrorResponse(w, http.StatusInternalServerError, "failed to process query")
+		handlers.WriteErrorResponse(w, fmt.Errorf("failed to process query"))
 		return
 	}
 
 	// Return response
-	writeJSON(w, http.StatusOK, result)
+	handlers.WriteJSON(w, http.StatusOK, result)
 }
 
 // ListQueries handles listing query history
 func (h *RagHandler) ListQueries(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
-		writeErrorResponse(w, http.StatusBadRequest, "tenant_id required")
+		handlers.WriteErrorResponse(w, fmt.Errorf("tenant_id required"))
 		return
 	}
 
@@ -113,7 +115,7 @@ func (h *RagHandler) ListQueries(w http.ResponseWriter, r *http.Request) {
 
 	queries, total, err := h.queryRepo.ListByTenant(r.Context(), tenantID, limit, offset)
 	if err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, "failed to list queries")
+		handlers.WriteErrorResponse(w, fmt.Errorf("failed to list queries"))
 		return
 	}
 
@@ -123,28 +125,28 @@ func (h *RagHandler) ListQueries(w http.ResponseWriter, r *http.Request) {
 		"limit":   limit,
 		"offset":  offset,
 	}
-	writeJSON(w, http.StatusOK, response)
+	handlers.WriteJSON(w, http.StatusOK, response)
 }
 
 // GetQuery handles getting a single query
 func (h *RagHandler) GetQuery(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
-		writeErrorResponse(w, http.StatusBadRequest, "tenant_id required")
+		handlers.WriteErrorResponse(w, fmt.Errorf("tenant_id required"))
 		return
 	}
 
 	queryID, err := uuid.Parse(chi.URLParam(r, "queryID"))
 	if err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "invalid query ID")
+		handlers.WriteErrorResponse(w, fmt.Errorf("invalid query ID"))
 		return
 	}
 
 	query, err := h.queryRepo.GetByID(r.Context(), tenantID, queryID)
 	if err != nil {
-		writeErrorResponse(w, http.StatusNotFound, "query not found")
+		handlers.WriteErrorResponse(w, fmt.Errorf("query not found"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, query)
+	handlers.WriteJSON(w, http.StatusOK, query)
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/finch-co/cashflow/internal/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/domain"
 )
 
 type ChunkRepo struct {
@@ -29,17 +29,26 @@ func (r *ChunkRepo) Create(ctx context.Context, input domain.CreateChunkInput) (
 
 	var chunk domain.DocumentChunk
 	var metaBytes []byte
+
+	// Dual write: write to both legacy embedding (TEXT) and new embedding_vector (pgvector)
+	// Use EmbeddingVector if provided, otherwise fall back to Embedding
+	embeddingToUse := input.EmbeddingVector
+	if len(embeddingToUse) == 0 {
+		embeddingToUse = input.Embedding
+	}
+
 	err = r.pool.QueryRow(ctx,
-		`INSERT INTO document_chunks (tenant_id, document_id, chunk_index, content, embedding, metadata)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO document_chunks (tenant_id, document_id, chunk_index, content, embedding, embedding_vector, metadata)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING id, tenant_id, document_id, chunk_index, content, metadata, created_at`,
-		input.TenantID, input.DocumentID, input.Index, input.Content, input.Embedding, metadata,
+		input.TenantID, input.DocumentID, input.Index, input.Content, input.Embedding, embeddingToUse, metadata,
 	).Scan(&chunk.ID, &chunk.TenantID, &chunk.DocumentID, &chunk.Index, &chunk.Content, &metaBytes, &chunk.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("creating chunk: %w", err)
 	}
 	_ = json.Unmarshal(metaBytes, &chunk.Metadata)
 	chunk.Embedding = input.Embedding
+	chunk.EmbeddingVector = input.EmbeddingVector
 	return &chunk, nil
 }
 
@@ -91,6 +100,7 @@ func (r *ChunkRepo) SearchSimilar(ctx context.Context, tenantID uuid.UUID, embed
 		limit = 5
 	}
 
+	// Use pgvector column if available, otherwise fall back to legacy embedding
 	query := `
 		SELECT 
 			id, 
@@ -100,10 +110,13 @@ func (r *ChunkRepo) SearchSimilar(ctx context.Context, tenantID uuid.UUID, embed
 			content, 
 			metadata,
 			created_at,
-			embedding <-> $1 AS distance
+			COALESCE(
+				embedding_vector <=> $1::vector,
+				embedding <-> $1
+			) AS distance
 		FROM document_chunks
-		WHERE tenant_id = $2 AND embedding IS NOT NULL
-		ORDER BY embedding <-> $1
+		WHERE tenant_id = $2 AND (embedding_vector IS NOT NULL OR embedding IS NOT NULL)
+		ORDER BY distance
 		LIMIT $3
 	`
 
@@ -148,8 +161,9 @@ func (r *ChunkRepo) SearchSimilar(ctx context.Context, tenantID uuid.UUID, embed
 }
 
 func (r *ChunkRepo) UpdateEmbedding(ctx context.Context, tenantID, chunkID uuid.UUID, embedding []float32) error {
+	// Dual write: update both legacy embedding and new embedding_vector
 	tag, err := r.pool.Exec(ctx,
-		`UPDATE document_chunks SET embedding = $1 WHERE id = $2 AND tenant_id = $3`,
+		`UPDATE document_chunks SET embedding = $1, embedding_vector = $1 WHERE id = $2 AND tenant_id = $3`,
 		embedding, chunkID, tenantID,
 	)
 	if err != nil {

@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/domain"
-	ragDomain "github.com/finch-co/cashflow/internal/rag/domain"
-	"github.com/finch-co/cashflow/internal/rag/usecase"
+	"github.com/finch-co/cashflow/internal/models"
+	ragDomain "github.com/finch-co/cashflow/internal/ai/rag/domain"
+	"github.com/finch-co/cashflow/internal/ai/rag/usecase"
 )
 
 // DocumentHandler handles HTTP requests for document management
@@ -49,14 +49,14 @@ func (h *DocumentHandler) RegisterRoutes(r chi.Router) {
 // UploadDocument handles document upload
 func (h *DocumentHandler) UploadDocument(w http.ResponseWriter, r *http.Request) {
 	// Get tenant ID from context
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
 		writeErrorResponse(w, http.StatusBadRequest, "tenant_id required")
 		return
 	}
 
 	// Get user ID from context (demo mode)
-	userID, _ := domain.UserIDFromContext(r.Context())
+	userID, _ := models.UserIDFromContext(r.Context())
 
 	// Parse multipart form (max 25MB)
 	if err := r.ParseMultipartForm(25 << 20); err != nil {
@@ -140,7 +140,7 @@ func (h *DocumentHandler) UploadDocument(w http.ResponseWriter, r *http.Request)
 
 // ListDocuments handles listing documents
 func (h *DocumentHandler) ListDocuments(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
 		writeErrorResponse(w, http.StatusBadRequest, "tenant_id required")
 		return
@@ -179,7 +179,7 @@ func (h *DocumentHandler) ListDocuments(w http.ResponseWriter, r *http.Request) 
 
 // GetDocument handles getting a single document
 func (h *DocumentHandler) GetDocument(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
 		writeErrorResponse(w, http.StatusBadRequest, "tenant_id required")
 		return
@@ -202,7 +202,7 @@ func (h *DocumentHandler) GetDocument(w http.ResponseWriter, r *http.Request) {
 
 // DeleteDocument handles document deletion
 func (h *DocumentHandler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := domain.TenantIDFromContext(r.Context())
+	tenantID, ok := models.TenantIDFromContext(r.Context())
 	if !ok {
 		writeErrorResponse(w, http.StatusBadRequest, "tenant_id required")
 		return
