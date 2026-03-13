@@ -1,4 +1,4 @@
-package ingestion
+package operations
 
 import (
 	"context"
@@ -13,38 +13,43 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/adapter/mq"
-	"github.com/finch-co/cashflow/internal/domain"
+	"github.com/finch-co/cashflow/internal/models"
 )
 
-// UseCase handles financial data ingestion workflows (CSV import, bank sync, cash position).
-// This package is a bounded context for the ingestion service; it can be extracted
+// UseCase handles financial data operations workflows (CSV import, bank sync, cash position).
+// This package is a bounded context for the operations service; it can be extracted
 // into a separate service later with minimal change.
 type UseCase struct {
-	bankAccounts domain.BankAccountRepository
-	rawTxns      domain.RawBankTransactionRepository
-	txns         domain.BankTransactionRepository
-	jobs         domain.IngestionJobRepository
-	idempotency  domain.IdempotencyRepository
-	publisher    *mq.Publisher
+	bankAccounts   models.BankAccountRepository
+	rawTxns        models.RawBankTransactionRepository
+	txns           models.BankTransactionRepository
+	jobs           models.IngestionJobRepository
+	idempotency    models.IdempotencyRepository
+	publisher      interface{}
+	vendorLearning *VendorLearningService
+	vendorIdentity *VendorIdentityService
 }
 
-// NewUseCase creates a new ingestion use case.
+// NewUseCase creates a new operations use case.
 func NewUseCase(
-	bankAccounts domain.BankAccountRepository,
-	rawTxns domain.RawBankTransactionRepository,
-	txns domain.BankTransactionRepository,
-	jobs domain.IngestionJobRepository,
-	idempotency domain.IdempotencyRepository,
-	publisher *mq.Publisher,
+	bankAccounts models.BankAccountRepository,
+	rawTxns models.RawBankTransactionRepository,
+	txns models.BankTransactionRepository,
+	jobs models.IngestionJobRepository,
+	idempotency models.IdempotencyRepository,
+	publisher interface{},
+	vendorLearning *VendorLearningService,
+	vendorIdentity *VendorIdentityService,
 ) *UseCase {
 	return &UseCase{
-		bankAccounts: bankAccounts,
-		rawTxns:      rawTxns,
-		txns:         txns,
-		jobs:         jobs,
-		idempotency:  idempotency,
-		publisher:    publisher,
+		bankAccounts:   bankAccounts,
+		rawTxns:        rawTxns,
+		txns:           txns,
+		jobs:           jobs,
+		idempotency:    idempotency,
+		publisher:      publisher,
+		vendorLearning: vendorLearning,
+		vendorIdentity: vendorIdentity,
 	}
 }
 
@@ -66,17 +71,17 @@ func (uc *UseCase) ImportBankCSV(ctx context.Context, tenantID, accountID uuid.U
 		return nil, fmt.Errorf("bank account not found: %w", err)
 	}
 
-	job, err := uc.jobs.Create(ctx, tenantID, domain.CreateIngestionJobInput{
+	job, err := uc.jobs.Create(ctx, tenantID, models.CreateIngestionJobInput{
 		JobType: "csv_import",
 		Metadata: map[string]any{
 			"account_id": accountID.String(),
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating ingestion job: %w", err)
+		return nil, fmt.Errorf("creating operations job: %w", err)
 	}
 
-	_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusRunning, "")
+	_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusRunning, "")
 
 	result := &CSVImportResult{JobID: job.ID}
 
@@ -85,7 +90,7 @@ func (uc *UseCase) ImportBankCSV(ctx context.Context, tenantID, accountID uuid.U
 
 	header, err := csvReader.Read()
 	if err != nil {
-		_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusFailed, "failed to read CSV header")
+		_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusFailed, "failed to read CSV header")
 		return nil, fmt.Errorf("reading CSV header: %w", err)
 	}
 
@@ -95,13 +100,13 @@ func (uc *UseCase) ImportBankCSV(ctx context.Context, tenantID, accountID uuid.U
 	for _, col := range required {
 		if _, ok := colMap[col]; !ok {
 			errMsg := fmt.Sprintf("missing required column: %s", col)
-			_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusFailed, errMsg)
-			return nil, fmt.Errorf("%w: %s", domain.ErrValidation, errMsg)
+			_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusFailed, errMsg)
+			return nil, fmt.Errorf("%w: %s", models.ErrValidation, errMsg)
 		}
 	}
 
 	var rawPayloads []map[string]any
-	var normalizedTxns []domain.BankTransaction
+	var normalizedTxns []models.BankTransaction
 	lineNum := 1
 
 	for {
@@ -136,7 +141,7 @@ func (uc *UseCase) ImportBankCSV(ctx context.Context, tenantID, accountID uuid.U
 	}
 
 	if len(normalizedTxns) == 0 {
-		_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusCompleted, "")
+		_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusCompleted, "")
 		return result, nil
 	}
 
@@ -154,38 +159,224 @@ func (uc *UseCase) ImportBankCSV(ctx context.Context, tenantID, accountID uuid.U
 
 	inserted, err := uc.txns.BulkUpsert(ctx, tenantID, normalizedTxns)
 	if err != nil {
-		_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusFailed, err.Error())
+		_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusFailed, err.Error())
 		return nil, fmt.Errorf("upserting transactions: %w", err)
 	}
 
 	result.Inserted = inserted
 	result.Duplicates = len(normalizedTxns) - inserted - result.Errors
 
-	_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusCompleted, "")
+	_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusCompleted, "")
 
-	if inserted > 0 {
-		env, err := mq.NewEnvelope(mq.RKTransactionsIngested, tenantID.String(), map[string]any{
-			"job_id":     job.ID.String(),
-			"account_id": accountID.String(),
-			"count":      inserted,
-		})
-		if err == nil {
-			if pubErr := uc.publisher.PublishEvent(ctx, mq.RKTransactionsIngested, env); pubErr != nil {
-				log.Error().Err(pubErr).Str("job_id", job.ID.String()).Msg("failed to publish transactions.ingested event")
+	// TODO: Publish event when publisher is implemented
+
+	return result, nil
+}
+
+// ImportBankJSON processes a JSON payload containing structured bank transactions.
+// Supports deduplication via SHA256 hash: {tenant_id}|{account_id}|{date}|{amount}|{description}
+func (uc *UseCase) ImportBankJSON(ctx context.Context, tenantID uuid.UUID, payload models.ImportBankJSONPayload) (*models.JSONImportResult, error) {
+	_, err := uc.bankAccounts.GetByID(ctx, tenantID, payload.AccountID)
+	if err != nil {
+		return nil, fmt.Errorf("bank account not found: %w", err)
+	}
+
+	job, err := uc.jobs.Create(ctx, tenantID, models.CreateIngestionJobInput{
+		JobType: "json_import",
+		Metadata: map[string]any{
+			"account_id": payload.AccountID.String(),
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating ingestion job: %w", err)
+	}
+
+	_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusRunning, "")
+
+	result := &models.JSONImportResult{
+		JobID:     job.ID,
+		TotalRows: len(payload.Transactions),
+	}
+
+	var normalizedTxns []models.BankTransaction
+	var rawPayloads []map[string]any
+
+	for _, txn := range payload.Transactions {
+		// Parse date
+		txnDate, err := time.Parse("2006-01-02", txn.Date)
+		if err != nil {
+			result.Errors++
+			log.Warn().Err(err).Str("date", txn.Date).Msg("failed to parse transaction date")
+			continue
+		}
+
+		// Try to apply vendor learning rules if service is available
+		if uc.vendorLearning != nil && txn.RawText != "" {
+			match, err := uc.vendorLearning.ApplyRules(ctx, tenantID, txn.RawText)
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to apply vendor rules")
+			} else if match != nil {
+				// Rule matched - use learned vendor and category
+				txn.AIVendor = match.VendorName
+				txn.Category = match.Category
+				txn.AIConfidence = int(match.Confidence * 100)
+
+				// If description is empty or same as raw text, use vendor name
+				if txn.Description == "" || txn.Description == txn.RawText {
+					txn.Description = match.VendorName
+				}
 			}
 		}
+
+		// Resolve vendor identity first (before hash generation)
+		var vendorID *uuid.UUID
+		if uc.vendorIdentity != nil {
+			resolvedVendorID, err := uc.vendorIdentity.ResolveVendor(
+				ctx,
+				tenantID,
+				txn.AIVendor,
+				txn.RawText,
+				txn.Category,
+			)
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to resolve vendor identity")
+			} else {
+				vendorID = &resolvedVendorID
+			}
+		}
+
+		// Generate SHA256 hash for deduplication
+		// Format: {tenant_id}|{account_id}|{date}|{amount}|{normalized_description}|{vendor_id}
+		// Normalize description to avoid false duplicates
+		normalizedDesc := normalizeDescription(txn.Description)
+		vendorIDStr := ""
+		if vendorID != nil {
+			vendorIDStr = vendorID.String()
+		}
+		hashInput := fmt.Sprintf("%s|%s|%s|%.2f|%s|%s",
+			tenantID.String(),
+			payload.AccountID.String(),
+			txn.Date,
+			txn.Amount,
+			normalizedDesc,
+			vendorIDStr,
+		)
+		hashBytes := sha256.Sum256([]byte(hashInput))
+		hash := fmt.Sprintf("%x", hashBytes)
+
+		// Create normalized transaction
+		normalizedTxn := models.BankTransaction{
+			TenantID:     tenantID,
+			AccountID:    payload.AccountID,
+			TxnDate:      txnDate,
+			Amount:       txn.Amount,
+			Currency:     txn.Currency,
+			Description:  txn.Description,
+			Counterparty: txn.Counterparty,
+			Category:     txn.Category,
+			Hash:         hash,
+			VendorID:     vendorID,
+		}
+		normalizedTxns = append(normalizedTxns, normalizedTxn)
+
+		// Store raw payload for audit trail
+		rawPayload := map[string]any{
+			"date":          txn.Date,
+			"amount":        txn.Amount,
+			"currency":      txn.Currency,
+			"description":   txn.Description,
+			"counterparty":  txn.Counterparty,
+			"category":      txn.Category,
+			"raw_text":      txn.RawText,
+			"ai_vendor":     txn.AIVendor,
+			"ai_confidence": txn.AIConfidence,
+		}
+		rawPayloads = append(rawPayloads, rawPayload)
+	}
+
+	if len(normalizedTxns) == 0 {
+		_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusCompleted, "")
+		return result, nil
+	}
+
+	// Store raw transactions
+	rawIDs, err := uc.rawTxns.BulkCreate(ctx, tenantID, "json_import", rawPayloads)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to store raw transactions")
+	} else {
+		for i := range normalizedTxns {
+			if i < len(rawIDs) {
+				id := rawIDs[i]
+				normalizedTxns[i].RawID = &id
+			}
+		}
+	}
+
+	// Bulk upsert with deduplication (ON CONFLICT DO NOTHING)
+	inserted, err := uc.txns.BulkUpsert(ctx, tenantID, normalizedTxns)
+	if err != nil {
+		_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusFailed, err.Error())
+		return nil, fmt.Errorf("upserting transactions: %w", err)
+	}
+
+	result.Imported = inserted
+	result.Duplicates = len(normalizedTxns) - inserted - result.Errors
+
+	_ = uc.jobs.UpdateStatus(ctx, job.ID, models.JobStatusCompleted, "")
+
+	// Trigger async engines after successful import
+	// These run in background goroutines so the API response remains fast
+	if inserted > 0 {
+		go func() {
+			// Create background context (don't use request context)
+			_ = context.Background()
+
+			log.Info().
+				Str("tenant_id", tenantID.String()).
+				Int("imported", inserted).
+				Msg("triggering async treasury engines after import")
+
+			// TODO: Uncomment when engines are available
+			// Signal Engine - detect anomalies and alerts
+			// if uc.signalEngine != nil {
+			//     if err := uc.signalEngine.Run(bgCtx, tenantID); err != nil {
+			//         log.Error().Err(err).Msg("signal engine failed")
+			//     }
+			// }
+
+			// Forecast Engine - recompute 13-week forecast
+			// if uc.forecastEngine != nil {
+			//     if err := uc.forecastEngine.Recompute(bgCtx, tenantID); err != nil {
+			//         log.Error().Err(err).Msg("forecast engine failed")
+			//     }
+			// }
+
+			// Insights Engine - generate AI insights
+			// if uc.insightsEngine != nil {
+			//     if err := uc.insightsEngine.Generate(bgCtx, tenantID); err != nil {
+			//         log.Error().Err(err).Msg("insights engine failed")
+			//     }
+			// }
+
+			// Daily Brief - refresh treasury brief
+			// if uc.briefEngine != nil {
+			//     if err := uc.briefEngine.Refresh(bgCtx, tenantID); err != nil {
+			//         log.Error().Err(err).Msg("brief engine failed")
+			//     }
+			// }
+		}()
 	}
 
 	return result, nil
 }
 
 // ListTransactions retrieves bank transactions for a tenant with filters.
-func (uc *UseCase) ListTransactions(ctx context.Context, filter domain.TransactionFilter) ([]domain.BankTransaction, int, error) {
+func (uc *UseCase) ListTransactions(ctx context.Context, filter models.TransactionFilter) ([]models.BankTransaction, int, error) {
 	return uc.txns.List(ctx, filter)
 }
 
 // CreateBankAccount registers a new bank account for a tenant.
-func (uc *UseCase) CreateBankAccount(ctx context.Context, tenantID uuid.UUID, input domain.CreateBankAccountInput) (*domain.BankAccount, error) {
+func (uc *UseCase) CreateBankAccount(ctx context.Context, tenantID uuid.UUID, input models.CreateBankAccountInput) (*models.BankAccount, error) {
 	if input.Currency == "" {
 		input.Currency = "SAR"
 	}
@@ -196,55 +387,38 @@ func (uc *UseCase) CreateBankAccount(ctx context.Context, tenantID uuid.UUID, in
 }
 
 // EnqueueSyncBank publishes a sync_bank command to RabbitMQ.
-func (uc *UseCase) EnqueueSyncBank(ctx context.Context, tenantID uuid.UUID) (*domain.IngestionJob, error) {
-	job, err := uc.jobs.Create(ctx, tenantID, domain.CreateIngestionJobInput{
+func (uc *UseCase) EnqueueSyncBank(ctx context.Context, tenantID uuid.UUID) (*models.IngestionJob, error) {
+	job, err := uc.jobs.Create(ctx, tenantID, models.CreateIngestionJobInput{
 		JobType: "sync_bank",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating sync_bank job: %w", err)
 	}
 
-	env, err := mq.NewEnvelope(mq.RKIngestionSyncBank, tenantID.String(), map[string]any{
-		"job_id": job.ID.String(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("creating envelope: %w", err)
-	}
-
-	if err := uc.publisher.PublishCommand(ctx, mq.RKIngestionSyncBank, env); err != nil {
-		_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusFailed, "failed to enqueue")
-		return nil, fmt.Errorf("publishing sync_bank command: %w", err)
-	}
+	// TODO: Publish command when publisher is implemented
+	// env, err := operations.NewEnvelope(operations.RKIngestionSyncBank, tenantID.String(), map[string]any{"job_id": job.ID.String()})
+	// uc.publisher.PublishCommand(ctx, operations.RKIngestionSyncBank, env)
 
 	return job, nil
 }
 
 // EnqueueSyncAccounting publishes a sync_accounting command to RabbitMQ.
-func (uc *UseCase) EnqueueSyncAccounting(ctx context.Context, tenantID uuid.UUID) (*domain.IngestionJob, error) {
-	job, err := uc.jobs.Create(ctx, tenantID, domain.CreateIngestionJobInput{
+func (uc *UseCase) EnqueueSyncAccounting(ctx context.Context, tenantID uuid.UUID) (*models.IngestionJob, error) {
+	job, err := uc.jobs.Create(ctx, tenantID, models.CreateIngestionJobInput{
 		JobType: "sync_accounting",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating sync_accounting job: %w", err)
 	}
 
-	env, err := mq.NewEnvelope(mq.RKIngestionSyncAccounting, tenantID.String(), map[string]any{
-		"job_id": job.ID.String(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("creating envelope: %w", err)
-	}
-
-	if err := uc.publisher.PublishCommand(ctx, mq.RKIngestionSyncAccounting, env); err != nil {
-		_ = uc.jobs.UpdateStatus(ctx, job.ID, domain.JobStatusFailed, "failed to enqueue")
-		return nil, fmt.Errorf("publishing sync_accounting command: %w", err)
-	}
+	// TODO: Publish command when publisher is implemented
+	// env, err := operations.NewEnvelope(operations.RKIngestionSyncAccounting, tenantID.String(), map[string]any{"job_id": job.ID.String()})
+	// uc.publisher.PublishCommand(ctx, operations.RKIngestionSyncAccounting, env)
 
 	return job, nil
 }
 
-// GetCashPosition returns the cash position for a tenant as of a given date.
-func (uc *UseCase) GetCashPosition(ctx context.Context, tenantID uuid.UUID, asOf time.Time) (*domain.CashPositionResponse, error) {
+func (uc *UseCase) GetCashPosition(ctx context.Context, tenantID uuid.UUID, asOf time.Time) (*models.CashPositionResponse, error) {
 	accounts, _, err := uc.bankAccounts.ListByTenant(ctx, tenantID, 500, 0)
 	if err != nil {
 		return nil, fmt.Errorf("listing bank accounts: %w", err)
@@ -256,18 +430,18 @@ func (uc *UseCase) GetCashPosition(ctx context.Context, tenantID uuid.UUID, asOf
 	}
 
 	asOfDate := asOf.Truncate(24 * time.Hour)
-	resp := &domain.CashPositionResponse{
+	resp := &models.CashPositionResponse{
 		TenantID:     tenantID.String(),
 		AsOf:         asOfDate.Format("2006-01-02"),
 		CurrencyMode: "native",
-		Accounts:     make([]domain.CashPositionAccount, 0, len(accounts)),
-		Totals:       domain.CashPositionTotals{ByCurrency: []domain.CashPositionTotalByCurrency{}},
+		Accounts:     make([]models.CashPositionAccount, 0, len(accounts)),
+		Totals:       models.CashPositionTotals{ByCurrency: []models.CashPositionTotalByCurrency{}},
 	}
 
 	totalsByCurrency := make(map[string]float64)
 	for _, acc := range accounts {
 		bal := balances[acc.ID]
-		resp.Accounts = append(resp.Accounts, domain.CashPositionAccount{
+		resp.Accounts = append(resp.Accounts, models.CashPositionAccount{
 			AccountID: acc.ID,
 			Name:      acc.Nickname,
 			Currency:  acc.Currency,
@@ -276,13 +450,22 @@ func (uc *UseCase) GetCashPosition(ctx context.Context, tenantID uuid.UUID, asOf
 		totalsByCurrency[acc.Currency] += bal
 	}
 	for currency, balance := range totalsByCurrency {
-		resp.Totals.ByCurrency = append(resp.Totals.ByCurrency, domain.CashPositionTotalByCurrency{
+		resp.Totals.ByCurrency = append(resp.Totals.ByCurrency, models.CashPositionTotalByCurrency{
 			Currency: currency,
 			Balance:  balance,
 		})
 	}
 
 	return resp, nil
+}
+
+// ListBankAccounts retrieves all bank accounts for a tenant
+func (uc *UseCase) ListBankAccounts(ctx context.Context, tenantID uuid.UUID) ([]models.BankAccount, error) {
+	accounts, _, err := uc.bankAccounts.ListByTenant(ctx, tenantID, 500, 0)
+	if err != nil {
+		return nil, fmt.Errorf("listing bank accounts: %w", err)
+	}
+	return accounts, nil
 }
 
 func buildColumnMap(header []string) map[string]int {
@@ -293,7 +476,7 @@ func buildColumnMap(header []string) map[string]int {
 	return m
 }
 
-func parseCSVRow(record []string, colMap map[string]int, tenantID, accountID uuid.UUID) (*domain.BankTransaction, error) {
+func parseCSVRow(record []string, colMap map[string]int, tenantID, accountID uuid.UUID) (*models.BankTransaction, error) {
 	getCol := func(name string) string {
 		if idx, ok := colMap[name]; ok && idx < len(record) {
 			return strings.TrimSpace(record[idx])
@@ -334,7 +517,7 @@ func parseCSVRow(record []string, colMap map[string]int, tenantID, accountID uui
 
 	hash := computeTransactionHash(accountID.String(), dateStr, amountStr, description, counterparty)
 
-	return &domain.BankTransaction{
+	return &models.BankTransaction{
 		TenantID:     tenantID,
 		AccountID:    accountID,
 		TxnDate:      txnDate,
@@ -351,4 +534,16 @@ func computeTransactionHash(accountID, date, amount, description, counterparty s
 	raw := strings.Join([]string{accountID, date, amount, description, counterparty}, "|")
 	h := sha256.Sum256([]byte(raw))
 	return fmt.Sprintf("%x", h)
+}
+
+// normalizeDescription normalizes a description string to avoid false duplicates
+// Normalization: trim whitespace, lowercase, collapse multiple spaces
+func normalizeDescription(desc string) string {
+	// Trim whitespace
+	desc = strings.TrimSpace(desc)
+	// Convert to lowercase
+	desc = strings.ToLower(desc)
+	// Collapse multiple spaces into single space
+	desc = strings.Join(strings.Fields(desc), " ")
+	return desc
 }

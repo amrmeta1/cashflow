@@ -1,4 +1,4 @@
-package http
+package api
 
 import (
 	"net/http"
@@ -8,18 +8,58 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/finch-co/cashflow/internal/auth"
-	"github.com/finch-co/cashflow/internal/domain"
 	"github.com/finch-co/cashflow/internal/middleware"
+	"github.com/finch-co/cashflow/internal/models"
 )
 
 type RouterDeps struct {
 	Validator   *auth.Validator // Optional - can be nil for demo mode
-	Users       domain.UserRepository
-	Memberships domain.MembershipRepository
-	AuditRepo   domain.AuditLogRepository
-	Tenants     *TenantHandler
-	Members     *MemberHandler
-	Audit       *AuditHandler
+	Users       models.UserRepository
+	Memberships models.MembershipRepository
+	AuditRepo   models.AuditLogRepository
+	Tenants     interface {
+		Create(http.ResponseWriter, *http.Request)
+		GetByID(http.ResponseWriter, *http.Request)
+	}
+	Members interface {
+		GetProfile(http.ResponseWriter, *http.Request)
+		AddMember(http.ResponseWriter, *http.Request)
+		ListMembers(http.ResponseWriter, *http.Request)
+		RemoveMember(http.ResponseWriter, *http.Request)
+		ChangeMemberRole(http.ResponseWriter, *http.Request)
+	}
+	Audit interface {
+		ListByTenant(http.ResponseWriter, *http.Request)
+	}
+	Documents interface {
+		UploadDocument(http.ResponseWriter, *http.Request)
+		ListDocuments(http.ResponseWriter, *http.Request)
+		DeleteDocument(http.ResponseWriter, *http.Request)
+	}
+	Analysis interface {
+		GetLatestAnalysis(http.ResponseWriter, *http.Request)
+	}
+	RagQuery interface {
+		Query(http.ResponseWriter, *http.Request)
+	}
+	CashPosition interface {
+		GetCashPosition(http.ResponseWriter, *http.Request)
+		ImportBankJSON(http.ResponseWriter, *http.Request)
+		ListBankAccounts(http.ResponseWriter, *http.Request)
+	}
+	VendorRules interface {
+		CreateVendorRule(http.ResponseWriter, *http.Request)
+		ListVendorRules(http.ResponseWriter, *http.Request)
+	}
+	Signals interface {
+		RunSignalEngine(http.ResponseWriter, *http.Request)
+		GetSignals(http.ResponseWriter, *http.Request)
+	}
+	Liquidity interface {
+		GetCurrentForecast(http.ResponseWriter, *http.Request)
+		GetCashStory(http.ResponseWriter, *http.Request)
+		GetRecommendedActions(http.ResponseWriter, *http.Request)
+	}
 }
 
 func NewRouter(deps RouterDeps) http.Handler {
@@ -40,7 +80,7 @@ func NewRouter(deps RouterDeps) http.Handler {
 	})
 
 	// API routes (no authentication - demo mode)
-	r.Group(func(r chi.Router) {
+	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(middleware.DemoMode(deps.Users))
 		r.Use(middleware.TenantFromHeader)
 
@@ -64,14 +104,59 @@ func NewRouter(deps RouterDeps) http.Handler {
 
 				// Role change
 				r.Post("/roles", deps.Members.ChangeMemberRole)
-			})
-		})
 
-		// Audit logs (requires tenant context)
-		r.Route("/audit-logs", func(r chi.Router) {
-			r.Use(middleware.RequireTenant)
-			r.Use(middleware.TenantRateLimit(100, time.Minute))
-			r.Get("/", deps.Audit.ListByTenant)
+				// Documents (AI Advisor)
+				if deps.Documents != nil {
+					r.Post("/documents", deps.Documents.UploadDocument)
+					r.Get("/documents", deps.Documents.ListDocuments)
+					r.Delete("/documents/{documentID}", deps.Documents.DeleteDocument)
+				}
+
+				// Cash Analysis (AI Advisor)
+				if deps.Analysis != nil {
+					r.Get("/analysis/latest", deps.Analysis.GetLatestAnalysis)
+				}
+
+				// RAG Query (AI Advisor)
+				if deps.RagQuery != nil {
+					r.Post("/rag/query", deps.RagQuery.Query)
+				}
+
+				// Cash Position
+				if deps.CashPosition != nil {
+					r.Get("/cash-position", deps.CashPosition.GetCashPosition)
+				}
+
+				// Audit logs
+				if deps.Audit != nil {
+					r.Get("/audit-logs", deps.Audit.ListByTenant)
+				}
+
+				// Signals (AI Agent)
+				if deps.Signals != nil {
+					r.Post("/signals/run", deps.Signals.RunSignalEngine)
+					r.Get("/signals", deps.Signals.GetSignals)
+				}
+
+				// Liquidity Module
+				if deps.Liquidity != nil {
+					r.Get("/liquidity/forecast", deps.Liquidity.GetCurrentForecast)
+					r.Get("/liquidity/cash-story", deps.Liquidity.GetCashStory)
+					r.Get("/liquidity/decisions", deps.Liquidity.GetRecommendedActions)
+				}
+
+				// Import endpoints (operations)
+				if deps.CashPosition != nil {
+					r.Post("/imports/bank-json", deps.CashPosition.ImportBankJSON)
+					r.Get("/bank-accounts", deps.CashPosition.ListBankAccounts)
+				}
+
+				// Vendor Learning Rules
+				if deps.VendorRules != nil {
+					r.Post("/vendor-rules", deps.VendorRules.CreateVendorRule)
+					r.Get("/vendor-rules", deps.VendorRules.ListVendorRules)
+				}
+			})
 		})
 	})
 
