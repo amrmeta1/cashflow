@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getActiveAlerts, type Alert } from "@/lib/api/alerts-api";
+import { getActiveAlerts, type Alert } from "@/lib/api/reports-api";
 
 interface UseActiveAlertsOptions {
   enabled?: boolean;

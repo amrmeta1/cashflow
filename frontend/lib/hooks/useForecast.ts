@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getForecastCurrent, type ForecastResult } from "@/lib/api/forecast";
+import { getCashForecast, type CashForecastData } from "@/lib/api/cash-forecast-api";
 
 interface UseForecastOptions {
   enabled?: boolean;
@@ -19,21 +19,32 @@ export function useForecast(
 ) {
   const {
     enabled = true,
-    staleTime = 2 * 60_000, // 2 minutes - forecast changes less frequently
-    refetchInterval = 5 * 60_000, // 5 minutes
+    staleTime = 30_000, // 30 seconds
+    refetchInterval = 60_000, // 60 seconds auto-refresh
   } = options;
 
-  return useQuery<ForecastResult, Error>({
-    queryKey: ["forecast", "current", tenantId],
+  return useQuery<CashForecastData, Error>({
+    queryKey: ["forecast", tenantId],
     queryFn: () => {
       if (!tenantId) {
-        throw new Error("Tenant ID is required");
+        return Promise.resolve({
+          forecast: [],
+          metrics: {
+            current_cash: 0,
+            avg_weekly_inflow: 0,
+            avg_weekly_outflow: 0,
+            avg_weekly_burn: 0,
+            runway_weeks: 0,
+          },
+          confidence: 0,
+          generated_at: new Date().toISOString(),
+        });
       }
-      return getForecastCurrent(tenantId);
+      return getCashForecast(tenantId);
     },
     enabled: enabled && !!tenantId,
     staleTime,
-    gcTime: 10 * 60_000, // 10 minutes
+    gcTime: 5 * 60_000, // 5 minutes
     refetchInterval,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),

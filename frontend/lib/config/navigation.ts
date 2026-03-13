@@ -47,7 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "dashboard",
     translationKey: "dashboard",
-    href: "/app/dashboard",
+    href: "/liquidity/dashboard",
     icon: LayoutDashboard,
     allowedRoles: ALL_ROLES,
     group: "csuite",
@@ -55,7 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "hq",
     translationKey: "hq",
-    href: "/app/hq",
+    href: "/hq",
     icon: Building2,
     allowedRoles: ADMIN_OWNER,
     group: "csuite",
@@ -65,7 +65,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "forecast",
     translationKey: "forecast",
-    href: "/app/forecast",
+    href: "/liquidity/forecast",
     icon: TrendingUp,
     allowedRoles: ALL_ROLES,
     group: "ai",
@@ -73,7 +73,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "scenario-planner",
     translationKey: "scenarioPlanner",
-    href: "/app/scenario-planner",
+    href: "/liquidity/scenario",
     icon: SlidersHorizontal,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "ai",
@@ -83,7 +83,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "payables",
     translationKey: "payables",
-    href: "/app/payables",
+    href: "/operations/payables",
     icon: ArrowUpRight,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "ops",
@@ -91,7 +91,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "cash-collect",
     translationKey: "cashCollect",
-    href: "/app/cash-collect",
+    href: "/operations/collections",
     icon: MessageCircle,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "ops",
@@ -99,7 +99,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "reconciliation",
     translationKey: "reconciliation",
-    href: "/app/reconciliation",
+    href: "/operations/reconciliation",
     icon: Link2,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "ops",
@@ -107,7 +107,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "fx-radar",
     translationKey: "fxRadar",
-    href: "/app/fx-radar",
+    href: "/operations/fx-radar",
     icon: Globe,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "ops",
@@ -115,7 +115,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "cash-positioning",
     translationKey: "cashPositioning",
-    href: "/app/cash-positioning",
+    href: "/liquidity/cash-position",
     icon: Banknote,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "ops",
@@ -125,7 +125,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "transactions",
     translationKey: "transactions",
-    href: "/app/transactions",
+    href: "/reports/transactions",
     icon: ArrowLeftRight,
     allowedRoles: ALL_ROLES,
     group: "settings",
@@ -133,7 +133,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "alerts",
     translationKey: "alerts",
-    href: "/app/alerts",
+    href: "/reports/alerts",
     icon: Bell,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "settings",
@@ -141,7 +141,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "agents",
     translationKey: "agents",
-    href: "/app/agents",
+    href: "/ai-advisor/agents",
     icon: Bot,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "settings",
@@ -149,7 +149,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "import",
     translationKey: "import",
-    href: "/app/import",
+    href: "/reports/imports",
     icon: Upload,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "settings",
@@ -157,7 +157,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "reports",
     translationKey: "reports",
-    href: "/app/reports",
+    href: "/reports/reports",
     icon: FileText,
     allowedRoles: ALL_ROLES,
     group: "settings",
@@ -165,7 +165,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "waterfall",
     translationKey: "waterfall",
-    href: "/app/analytics/waterfall",
+    href: "/reports/budget-vs-actual",
     icon: BarChart2,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "settings",
@@ -173,7 +173,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "budget",
     translationKey: "budget",
-    href: "/app/analytics/budget",
+    href: "/reports/budget-vs-actual",
     icon: Target,
     allowedRoles: FINANCE_AND_ABOVE,
     group: "settings",
@@ -181,7 +181,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "billing",
     translationKey: "billing",
-    href: "/app/billing",
+    href: "/billing",
     icon: CreditCard,
     allowedRoles: ADMIN_OWNER,
     group: "settings",
@@ -189,7 +189,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "organization",
     translationKey: "organization",
-    href: "/app/settings/organization",
+    href: "/settings/organization",
     icon: Landmark,
     allowedRoles: ADMIN_OWNER,
     group: "settings",
@@ -197,7 +197,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "members",
     translationKey: "members",
-    href: "/app/settings/members",
+    href: "/settings/members",
     icon: Users,
     allowedRoles: ADMIN_OWNER,
     group: "settings",
@@ -205,7 +205,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "roles",
     translationKey: "roles",
-    href: "/app/settings/roles",
+    href: "/settings/roles",
     icon: KeyRound,
     allowedRoles: ADMIN_OWNER,
     group: "settings",
@@ -213,7 +213,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "integrations",
     translationKey: "integrations",
-    href: "/app/settings/integrations",
+    href: "/settings/integrations",
     icon: Plug,
     allowedRoles: ADMIN_OWNER,
     group: "settings",
@@ -221,7 +221,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "security",
     translationKey: "security",
-    href: "/app/settings/security",
+    href: "/settings/security",
     icon: ShieldCheck,
     allowedRoles: ADMIN_OWNER,
     group: "settings",
@@ -229,7 +229,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     key: "audit",
     translationKey: "audit",
-    href: "/app/audit",
+    href: "/settings/audit-logs",
     icon: ShieldCheck,
     allowedRoles: ADMIN_OWNER,
     group: "settings",

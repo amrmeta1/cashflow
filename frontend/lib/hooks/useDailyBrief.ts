@@ -19,21 +19,30 @@ export function useDailyBrief(
 ) {
   const {
     enabled = true,
-    staleTime = 5 * 60_000, // 5 minutes - brief changes less frequently
-    refetchInterval = 15 * 60_000, // 15 minutes
+    staleTime = 30_000, // 30 seconds
+    refetchInterval = 60_000, // 60 seconds auto-refresh
   } = options;
 
   return useQuery<DailyBriefData, Error>({
     queryKey: ["daily-brief", tenantId],
     queryFn: () => {
       if (!tenantId) {
-        throw new Error("Tenant ID is required");
+        return Promise.resolve({
+          date: new Date().toISOString(),
+          summary: '',
+          lastUpdated: new Date().toISOString(),
+          confidence: 0,
+          dataQuality: 0,
+          risks: [],
+          opportunities: [],
+          recommendations: [],
+        });
       }
       return getDailyBrief(tenantId);
     },
     enabled: enabled && !!tenantId,
     staleTime,
-    gcTime: 10 * 60_000, // 10 minutes
+    gcTime: 5 * 60_000, // 5 minutes
     refetchInterval,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),

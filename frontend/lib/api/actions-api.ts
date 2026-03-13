@@ -1,28 +1,37 @@
-import { tenantApi } from "./client";
+// Treasury Actions API
+import { tenantApi } from './client';
 
 export interface TreasuryAction {
-  type: string;
-  category: string;
+  id: string;
   title: string;
   description: string;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  status: 'pending' | 'completed' | 'dismissed';
   impact: number;
-  confidence: number;
-  currency: string;
+  effort_level?: 'HIGH' | 'MEDIUM' | 'LOW';
+  category: string;
+  confidence?: number;
+  created_at: string;
+  type?: string;
 }
 
 export interface ActionsData {
   actions: TreasuryAction[];
 }
 
-export interface ActionsResponse {
-  data: ActionsData;
-}
-
-export async function fetchRecommendedActions(
-  tenantId: string
-): Promise<ActionsData> {
-  const response = await tenantApi.get<ActionsResponse>(
-    `/tenants/${tenantId}/ai/actions`
-  );
-  return response.data;
+/**
+ * Get recommended treasury actions for a tenant
+ * @param tenantId - Tenant UUID
+ */
+export async function getActions(tenantId: string): Promise<ActionsData> {
+  // Use the actual backend endpoint: /liquidity/decisions
+  const response = await tenantApi.get(`/api/v1/tenants/${tenantId}/liquidity/decisions`);
+  
+  // If backend returns array, wrap in actions object
+  if (Array.isArray(response)) {
+    return { actions: response };
+  }
+  
+  // If backend already returns object with actions
+  return response as ActionsData;
 }

@@ -1,5 +1,17 @@
-import { tenantApi } from "./client";
-import { MOCKS_ENABLED, getMockReports, getMockReport } from "./mock-data";
+// Reports API - analysis, transactions, and reporting
+import { tenantApi } from './client';
+
+export interface Alert {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  description: string;
+  created_at: string;
+  [key: string]: any;
+}
+
+import { MOCKS_ENABLED, getMockReports, getMockReport } from "../mocks/mock-data";
 
 export interface ReportSummary {
   id: string;
@@ -56,4 +68,22 @@ export async function getReport(
 ): Promise<{ data: ReportDetail }> {
   if (MOCKS_ENABLED) return getMockReport(reportId);
   return tenantApi.get(`/tenants/${tenantId}/reports/${reportId}`);
+}
+
+// Alert functions (consolidated from alerts-api.ts)
+export async function getAlert(tenantId: string, alertId: string): Promise<any> {
+  return tenantApi.get(`/tenants/${tenantId}/alerts/${alertId}`);
+}
+
+export async function acknowledgeAlert(tenantId: string, alertId: string): Promise<void> {
+  return tenantApi.post(`/tenants/${tenantId}/alerts/${alertId}/ack`);
+}
+
+export async function resolveAlert(tenantId: string, alertId: string): Promise<void> {
+  return tenantApi.post(`/tenants/${tenantId}/alerts/${alertId}/resolve`);
+}
+
+export async function getActiveAlerts(tenantId: string): Promise<any[]> {
+  const response = await tenantApi.get(`/tenants/${tenantId}/alerts/active`) as any;
+  return response?.data || [];
 }

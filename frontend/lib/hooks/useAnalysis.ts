@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getAnalysisLatest } from "@/lib/api/ingestion-api";
+import { getAnalysisLatest } from "@/lib/api/operations-api";
 import { ApiClientError } from "@/lib/api/client";
 const QUERY_KEY = "analysis-latest";
 

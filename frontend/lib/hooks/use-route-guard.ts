@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMe } from "@/lib/hooks/use-me";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/shared/ui/toast";
 import type { Role } from "@/lib/api/types";
 
 export type GuardStatus = "loading" | "authorized" | "unauthorized";
@@ -31,7 +31,7 @@ export function useRouteGuard(allowedRoles: Role[]): RouteGuardResult {
         description: "You don't have permission to view this page.",
         variant: "destructive",
       });
-      router.replace("/app/dashboard");
+      router.replace("/liquidity/dashboard");
     }
   }, [unauthorized, router, toast]);
 

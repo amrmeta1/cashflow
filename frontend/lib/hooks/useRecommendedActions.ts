@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchRecommendedActions, type ActionsData } from "@/lib/api/actions-api";
+import { fetchRecommendedActions, type ActionsData } from "@/lib/api/liquidity-api";
 
 interface UseRecommendedActionsOptions {
   enabled?: boolean;

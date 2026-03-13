@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { getCashPosition } from "@/lib/api/ingestion-api";
+import { getCashPosition } from "@/lib/api/operations-api";
 import type { CashPositionResponse } from "@/lib/api/types";
 
 const QUERY_KEY = "cash-position";
