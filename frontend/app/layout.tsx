@@ -1,24 +1,19 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+"use client";
+
 import { Providers } from "@/lib/providers";
+import { AppShell } from "@/components/shared/layout/app-shell";
+import { OnboardingGuard } from "@/components/shared/providers/OnboardingGuard";
+import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "CashFlow.ai",
-  description: "Agentic financial management for GCC SMEs",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <Providers>{children}</Providers>
+      <body>
+        <Providers>
+          <OnboardingGuard>
+            <AppShell>{children}</AppShell>
+          </OnboardingGuard>
+        </Providers>
       </body>
     </html>
   );

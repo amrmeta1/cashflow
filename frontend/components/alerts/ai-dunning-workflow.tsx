@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Sparkles, MessageCircle, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/shared/ui/button";
+import { Skeleton } from "@/components/shared/ui/skeleton";
+import { Textarea } from "@/components/shared/ui/textarea";
 import { cn } from "@/lib/utils";
 
 // ── Types ───────────────────────────────────────────────────────────────────
