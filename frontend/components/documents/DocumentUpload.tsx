@@ -50,7 +50,15 @@ export function DocumentUpload() {
       queryClient.invalidateQueries({ queryKey: ["documents", tenantId] });
     },
     onError: (error: any) => {
-      const errorMessage = error?.message || (isAr ? "حدث خطأ غير متوقع" : "An unexpected error occurred");
+      let errorMessage = error?.message || (isAr ? "حدث خطأ غير متوقع" : "An unexpected error occurred");
+      
+      // Provide helpful message for parsing errors
+      if (errorMessage.includes("no text content") || errorMessage.includes("parsing")) {
+        errorMessage = isAr 
+          ? "الملف لا يحتوي على نص قابل للاستخراج. جرب ملف نصي (TXT) أو ملف يحتوي على نص."
+          : "Document contains no extractable text. Try a text file (TXT) or a document with text content.";
+      }
+      
       toast({
         title: isAr ? "فشل رفع المستند" : "Failed to upload document",
         description: errorMessage,

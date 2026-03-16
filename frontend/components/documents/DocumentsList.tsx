@@ -11,9 +11,9 @@ import { getTenantId, tenantApi } from "@/lib/api/client";
 import { FileText, Trash2, Loader2, CheckCircle2, XCircle, File } from "lucide-react";
 
 interface Document {
-  id: string;
-  title: string;
-  type: string;
+  document_id: string;
+  name: string;
+  file_type: string;
   status: string;
   created_at: string;
 }
@@ -143,14 +143,14 @@ export function DocumentsList() {
           <div className="space-y-2">
             {documents.map((doc) => (
               <div
-                key={doc.id}
+                key={doc.document_id}
                 className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">{doc.title}</p>
+                      <p className="text-sm font-medium truncate">{doc.name}</p>
                       {getStatusIcon(doc.status)}
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -165,7 +165,7 @@ export function DocumentsList() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDelete(doc.id)}
+                    onClick={() => handleDelete(doc.document_id)}
                     disabled={deleteMutation.isPending}
                     className="h-8 w-8"
                   >

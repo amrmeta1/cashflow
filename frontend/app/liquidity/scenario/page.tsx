@@ -191,7 +191,7 @@ export default function ScenarioPlannerPage() {
     return [];
   }, [forecastData]);
   const forecastChartLabels = useMemo(() => 
-    forecastData?.forecast.map((d) => isAr ? `أسبوع ${d.week_number}` : `Week ${d.week_number}`) ?? [], 
+    forecastData?.forecast.map((d: any, i: number) => isAr ? `أسبوع ${i + 1}` : `Week ${i + 1}`) ?? [], 
     [forecastData, isAr]
   );
 

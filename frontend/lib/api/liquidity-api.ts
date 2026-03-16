@@ -20,7 +20,8 @@ export interface TreasuryAction {
   created_at: string;
   category: string;
   impact: number;
-  confidence: number;
+  confidence?: number;
+  effort_level?: 'high' | 'medium' | 'low';
   type?: string;
 }
 
@@ -39,6 +40,10 @@ export interface DailyBriefData {
   opportunities?: any[];
   recommendations?: any[];
   [key: string]: any;
+}
+
+export interface ActionsData {
+  actions: TreasuryAction[];
 }
 
 // Forecast APIs

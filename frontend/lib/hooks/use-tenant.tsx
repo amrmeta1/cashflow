@@ -59,7 +59,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       memberships.length === 0 &&
       currentTenant === null
     ) {
-      setCurrentTenantState(DEMO_TENANT);
+      setCurrentTenantState(DEMO_TENANT as any);
       setTenantId(DEMO_TENANT.id);
     }
   }, [memberships, currentTenant]);

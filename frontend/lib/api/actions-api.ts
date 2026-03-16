@@ -5,10 +5,10 @@ export interface TreasuryAction {
   id: string;
   title: string;
   description: string;
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  priority: 'high' | 'medium' | 'low';
   status: 'pending' | 'completed' | 'dismissed';
   impact: number;
-  effort_level?: 'HIGH' | 'MEDIUM' | 'LOW';
+  effort_level?: 'high' | 'medium' | 'low';
   category: string;
   confidence?: number;
   created_at: string;

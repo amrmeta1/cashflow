@@ -30,7 +30,7 @@ export default function OrganizationPage() {
     status: "active" as const,
   };
 
-  const tenant = data?.data ?? currentTenant ?? MOCK_TENANT;
+  const tenant = data ?? currentTenant ?? MOCK_TENANT;
 
   return (
     <Card>
@@ -42,16 +42,16 @@ export default function OrganizationPage() {
           <dl className="grid gap-4 sm:grid-cols-2">
             <div>
               <dt className="text-sm text-muted-foreground">{t.settings.orgNameLabel}</dt>
-              <dd className="font-medium">{tenant.name}</dd>
+              <dd className="font-medium">{tenant?.name}</dd>
             </div>
             <div>
               <dt className="text-sm text-muted-foreground">{t.settings.orgSlugLabel}</dt>
-              <dd className="font-mono text-sm">{tenant.slug}</dd>
+              <dd className="font-mono text-sm">{tenant?.slug}</dd>
             </div>
             <div>
               <dt className="text-sm text-muted-foreground">{t.settings.orgPlanLabel}</dt>
               <dd>
-                <Badge variant="secondary">{tenant.plan}</Badge>
+                <Badge variant="secondary">{(tenant as any).plan || 'N/A'}</Badge>
               </dd>
             </div>
             <div>

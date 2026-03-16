@@ -71,7 +71,7 @@ export default function SystemStatusPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                status?.services.map((service) => (
+                status?.services.map((service: any) => (
                   <TableRow key={service.name}>
                     <TableCell className="font-medium">{service.name}</TableCell>
                     <TableCell>

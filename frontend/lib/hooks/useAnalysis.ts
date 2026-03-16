@@ -6,9 +6,14 @@ import { ApiClientError } from "@/lib/api/client";
 const QUERY_KEY = "analysis-latest";
 
 export function useAnalysis(tenantId: string | undefined) {
+  console.log("🔍 useAnalysis hook called:", { tenantId, enabled: !!tenantId && tenantId !== "demo" });
+  
   const query = useQuery({
     queryKey: [QUERY_KEY, tenantId],
-    queryFn: () => getAnalysisLatest(tenantId!),
+    queryFn: () => {
+      console.log("📤 Fetching analysis for tenant:", tenantId);
+      return getAnalysisLatest(tenantId!);
+    },
     enabled: !!tenantId && tenantId !== "demo",
     refetchInterval: (q) => {
       if (q.state.data) return false;
@@ -21,6 +26,14 @@ export function useAnalysis(tenantId: string | undefined) {
   const error = query.error;
   const isNotFound =
     error instanceof ApiClientError && error.status === 404;
+  
+  console.log("📥 useAnalysis result:", {
+    hasData: !!query.data,
+    isLoading: query.isLoading,
+    isNotFound,
+    errorMessage: error?.message,
+    transactionCount: query.data?.transaction_count
+  });
 
   return {
     data: query.data ?? null,

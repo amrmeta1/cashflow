@@ -27,6 +27,10 @@ import { useAnalysis } from "@/lib/hooks/useAnalysis";
 import { useDemo } from "@/contexts/DemoContext";
 import { cn } from "@/lib/utils";
 import type { AnalysisLatestResponse, AnalysisExpenseItem, AnalysisRecommendationItem } from "@/lib/api/types";
+import { StatementHistory } from "@/components/reports/analysis/StatementHistory";
+import { DataQuality } from "@/components/reports/analysis/DataQuality";
+import { SmartAlerts } from "@/components/reports/analysis/SmartAlerts";
+import { BankInsights } from "@/components/reports/analysis/BankInsights";
 
 // ── Mock analysis for demo mode (tenant "demo" has no UUID so API fails) ───
 function getMockAnalysisData(transactionCount: number): AnalysisLatestResponse {
@@ -261,7 +265,18 @@ export default function AnalysisPage() {
   const { currentTenant } = useTenant();
   const demo = useDemo();
   const tenantId = currentTenant?.id;
+  
+  console.log("📊 Analysis Page - Tenant ID:", tenantId);
+  
   const { data, isLoading, isNotFound, error, refetch } = useAnalysis(tenantId);
+  
+  console.log("📊 Analysis Data:", {
+    hasData: !!data,
+    isLoading,
+    isNotFound,
+    hasError: !!error,
+    transactionCount: data?.transaction_count
+  });
 
   const uploaded = searchParams.get("uploaded") === "true";
   const countParam = searchParams.get("count");
@@ -276,9 +291,27 @@ export default function AnalysisPage() {
   const shouldUseMock = isDemo || !hasValidData;
   const effectiveData = shouldUseMock ? getMockAnalysisData(displayCount) : data;
   const isMockData = shouldUseMock;
+  
+  console.log("📊 Analysis Display Logic:", {
+    isDemo,
+    hasValidData,
+    shouldUseMock,
+    usingMockData: isMockData,
+    effectiveTransactionCount: effectiveData?.transaction_count
+  });
+  
+  if (effectiveData) {
+    console.log("📊 Effective Analysis Data:", {
+      healthScore: effectiveData.summary?.health_score,
+      currentBalance: effectiveData.liquidity?.current_balance,
+      runwayDays: effectiveData.liquidity?.runway_days,
+      transactionCount: effectiveData.transaction_count,
+      expenseCategories: effectiveData.expense_breakdown?.length
+    });
+  }
 
   const liquidityData = useMemo(
-    () => (effectiveData ? buildLiquidityProjection(effectiveData) : []),
+    () => (effectiveData ? buildLiquidityProjection(effectiveData as AnalysisLatestResponse) : []),
     [effectiveData]
   );
   const expenseData = useMemo(
@@ -427,13 +460,25 @@ export default function AnalysisPage() {
                   <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                     {isAr ? `إجمالي المشاكل: ${summary?.total_problems ?? 0}` : `Total problems: ${summary?.total_problems ?? 0}`}
                   </span>
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground" suppressHydrationWarning>
                     {isAr ? `آخر تحليل: ${formatAnalyzedAt(effectiveData.analyzed_at)}` : `Last analyzed: ${formatAnalyzedAt(effectiveData.analyzed_at)}`}
                   </span>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* ── New Section: Smart Alerts & Data Quality ──────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <SmartAlerts />
+            <DataQuality />
+          </div>
+
+          {/* ── New Section: Statement History & Bank Insights ────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <StatementHistory />
+            <BankInsights bankType="qnb" />
+          </div>
 
           {/* ── Section 2: Problems & Recommendations ─────────────────────────── */}
           <div>

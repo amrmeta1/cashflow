@@ -39,8 +39,10 @@ export function BankAccountsList({
     setShowAll((prev) => !prev);
   }, []);
 
-  const visibleAccounts = showAll ? accounts : accounts.slice(0, visibleCount);
-  const hasMore = accounts.length > visibleCount;
+  // Handle null/undefined accounts
+  const safeAccounts = accounts || [];
+  const visibleAccounts = showAll ? safeAccounts : safeAccounts.slice(0, visibleCount);
+  const hasMore = safeAccounts.length > visibleCount;
 
   return (
     <Card className="shadow-sm border-border/50">
@@ -95,7 +97,7 @@ export function BankAccountsList({
               ) : (
                 <>
                   <ChevronDown className="h-3 w-3" />
-                  {showAllLabel} ({accounts.length})
+                  {showAllLabel} ({safeAccounts.length})
                 </>
               )}
             </button>

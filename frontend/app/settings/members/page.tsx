@@ -33,6 +33,21 @@ const ROLES: Role[] = [
   "accountant_readonly",
 ];
 
+const ROLE_LABELS: Record<Role, string> = {
+  tenant_admin: "Tenant Admin",
+  owner: "Owner",
+  finance_manager: "Finance Manager",
+  accountant_readonly: "Accountant (Read-only)",
+  group_cfo: "Group CFO",
+  treasury_director: "Treasury Director",
+  financial_controller: "Financial Controller",
+  ap_manager: "AP Manager",
+  ar_manager: "AR Manager",
+  bank_relationship_manager: "Bank Relationship Manager",
+  auditor_readonly: "Auditor (Read-only)",
+  board_member: "Board Member",
+};
+
 export default function MembersPage() {
   const { t } = useI18n();
   const { currentTenant } = useTenant();
@@ -73,7 +88,8 @@ export default function MembersPage() {
       queryClient.invalidateQueries({ queryKey: ["members"] }),
   });
 
-  const members = data?.data?.length ? data.data : MOCK_MEMBERS;
+  const members = data?.data ?? MOCK_MEMBERS;
+  const totalMembers = members.filter((m: any) => m.status === "active").length;
   const canAdd = can("member:add");
   const canRemove = can("member:remove");
 
@@ -117,7 +133,7 @@ export default function MembersPage() {
                   <SelectContent>
                     {ROLES.map((r) => (
                       <SelectItem key={r} value={r}>
-                        {t.roles[r]}
+                        {ROLE_LABELS[r]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -166,13 +182,13 @@ export default function MembersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {members.map((m) => (
+                  {members.slice(0, 5).map((m: any) => (
                     <tr key={m.id} className="border-b">
                       <td className="px-4 py-3 font-mono text-xs">
                         {m.user_id}
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant="secondary">{t.roles[m.role]}</Badge>
+                        <Badge variant="secondary">{ROLE_LABELS[m.role as Role] || m.role}</Badge>
                       </td>
                       <td className="px-4 py-3">
                         <Badge

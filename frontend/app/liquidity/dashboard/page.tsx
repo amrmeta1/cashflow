@@ -69,6 +69,9 @@ import { RechartsTooltipGlass } from "@/components/shared/charts/ChartTooltipGla
 import { KpiCard } from "@/components/liquidity/dashboard/KpiCard";
 import { BankAccountsList } from "@/components/liquidity/dashboard/BankAccountsList";
 import { UpcomingPayments } from "@/components/liquidity/dashboard/UpcomingPayments";
+import { LiquidityRiskCard } from "@/components/liquidity/dashboard/liquidity-risk-card";
+import { TopCashDrivers } from "@/components/liquidity/dashboard/top-cash-drivers";
+import { RecurringPaymentsPanel } from "@/components/liquidity/dashboard/recurring-payments-panel";
 import { chartGridProps, chartXAxisProps, chartTooltipCursor } from "@/components/shared/charts/chartStyles";
 import type { CashEvolutionPoint } from "@/components/liquidity/dashboard/CashEvolutionChart";
 import { cn } from "@/lib/utils";
@@ -500,7 +503,7 @@ export default function DashboardPage() {
       {/* ═══ KPI STRIP + Latest financial analysis (same row, always visible) ═══ */}
       <div className={cn(
         "grid gap-3",
-        sections.kpi ? "grid-cols-2 lg:grid-cols-4 xl:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+        sections.kpi ? "grid-cols-2 lg:grid-cols-4 xl:grid-cols-6" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
       )}>
         {sections.kpi && (
           <>
@@ -533,6 +536,11 @@ export default function DashboardPage() {
               change={{ value: d.stable, trend: "neutral", icon: ArrowUpRight }}
               dotColor="bg-indigo-500"
               gradient="bg-muted/20"
+            />
+            <LiquidityRiskCard
+              tenantId={currentTenant?.id}
+              currency={curr}
+              isAr={isAr}
             />
           </>
         )}
@@ -745,6 +753,13 @@ export default function DashboardPage() {
           </Card>
         )}
 
+        {/* Top Cash Drivers */}
+        <TopCashDrivers
+          tenantId={currentTenant?.id}
+          currency={curr}
+          isAr={isAr}
+        />
+
         {/* Bank Accounts */}
         {sections.banks && (
           <BankAccountsList
@@ -770,6 +785,15 @@ export default function DashboardPage() {
             daysLabel={d.days}
           />
         )}
+      </div>
+
+      {/* ═══ NEW ROW: Recurring Payments ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <RecurringPaymentsPanel
+          tenantId={currentTenant?.id}
+          currency={curr}
+          isAr={isAr}
+        />
       </div>
 
       {/* ═══ BOTTOM ROW: Recent Activity (AI Agents moved to right sidebar) ═══ */}

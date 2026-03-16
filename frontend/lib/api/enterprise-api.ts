@@ -60,6 +60,10 @@ export async function updateMemberRole(
   return tenantApi.patch(`/tenants/${tenantId}/members/${memberId}`, { role });
 }
 
+export async function createTenant(data: { name: string; slug: string }): Promise<Tenant> {
+  return tenantApi.post('/tenants', data);
+}
+
 export async function listAuditLogs(limit = 20, offset = 0): Promise<any> {
   return tenantApi.get("/audit-logs", {
     limit: String(limit),

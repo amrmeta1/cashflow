@@ -79,9 +79,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       tenant: t,
     }));
     
-    setMemberships(membershipsWithTenant);
+    setMemberships(membershipsWithTenant as any);
     if (mock.data.length > 0) {
-      setCurrentTenant(mock.data[0]);
+      setCurrentTenant(mock.data[0] as any);
     }
     setIsLoading(false);
   }, [demo.isDemoMode, demo.companyName, setCurrentTenant, setMemberships, setIsLoading]);

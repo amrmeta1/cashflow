@@ -89,7 +89,6 @@ const COMPLIANCE: NavItem[] = [
 const AI_ADVISOR: NavItem[] = [
   { navKey: "agents", icon: Bot, href: "/ai-advisor/agents" },
   { navKey: "chat", icon: MessageCircle, href: "/ai-advisor/chat" },
-  { navKey: "recommendedActions", icon: Lightbulb, href: "/ai-advisor/agents" },
   { navKey: "documents", icon: FileText, href: "/ai-advisor/documents" },
 ];
 

@@ -56,7 +56,7 @@ function AuditPageContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map((log) => (
+                  {logs.map((log: any) => (
                     <tr key={log.id} className="border-b hover:bg-muted/30">
                       <td className="px-4 py-3 whitespace-nowrap text-xs">
                         {formatDate(log.occurred_at, loc)}

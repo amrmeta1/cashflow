@@ -296,7 +296,7 @@ export default function CashPositioningPage() {
 
   const explanation: CashPositionExplanation | null = useMemo(() => {
     if (!cashData) return null;
-    const composition = (cashData.accounts ?? []).map((a) => ({
+    const composition = (cashData.accounts ?? []).map((a: any) => ({
       accountId: a.accountId,
       name: a.name,
       currency: a.currency,
@@ -328,7 +328,7 @@ export default function CashPositioningPage() {
     const rows: AccountRow[] = [
       { id: "all", nameEn: "All Accounts", nameAr: "جميع الحسابات", bank: "", type: "Summary", typeAr: "ملخص", prevBalance: total, todayBalance: total, color: ACCOUNT_COLORS[0] },
     ];
-    cashData.accounts.forEach((a, i) => {
+    cashData.accounts.forEach((a: any, i: number) => {
       rows.push({
         id: a.accountId,
         nameEn: a.name,
@@ -472,7 +472,7 @@ export default function CashPositioningPage() {
         chartData,
         totalFromApi ?? 0,
         minCashThreshold,
-        (cashData?.accounts ?? []).map((a) => ({ balance: a.balance })),
+        (cashData?.accounts ?? []).map((a: any) => ({ balance: a.balance })),
         fmt,
         currCode,
         isAr

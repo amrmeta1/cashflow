@@ -136,14 +136,15 @@ export default function ImportPage() {
   const [selectedAccountId, setSelectedAccountId] = React.useState<string | null>(null);
   const [editedRows, setEditedRows] = React.useState<Map<string, { originalCategory: string; originalVendor: string }>>(new Map());
 
-  // Fetch bank accounts
+  // Fetch bank accounts - use demo tenant ID if no tenant context
+  const tenantId = currentTenant?.id || "00000000-0000-0000-0000-000000000001";
   const { data: bankAccounts = [], isLoading: accountsLoading } = useQuery<BankAccount[]>({
-    queryKey: ["bank-accounts", currentTenant?.id],
-    queryFn: () => getBankAccounts(currentTenant?.id ?? "demo"),
-    enabled: !!currentTenant?.id,
+    queryKey: ["bank-accounts", tenantId],
+    queryFn: () => getBankAccounts(tenantId),
+    enabled: true,
   });
 
-  const { stage, progress, terminalLine, fileName, rows, selectedFileSize, onDrop, startUploadFromSelection, handleReset, updateRowCategory } = useCSVImport();
+  const { stage, progress, terminalLine, fileName, rows, selectedFileSize, originalFile, onDrop, startUploadFromSelection, handleReset, updateRowCategory } = useCSVImport();
 
   // Track category changes for vendor learning
   const handleCategoryChange = (rowId: string, newCategory: string) => {
@@ -170,6 +171,7 @@ export default function ImportPage() {
       "text/csv": [".csv"],
       "application/vnd.ms-excel": [".xls", ".xlsx"],
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/pdf": [".pdf"],
     },
     multiple: false,
     disabled: stage !== "idle",
@@ -178,35 +180,83 @@ export default function ImportPage() {
   const handleConfirm = async () => {
     const tenantId = currentTenant?.id ?? "demo";
     
-    if (!selectedAccountId) {
-      toast({
-        title: isAr ? "الرجاء اختيار حساب بنكي" : "Please select a bank account",
-        description: isAr ? "يجب اختيار حساب بنكي قبل الاستيراد" : "You must select a bank account before importing",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Check if this is a PDF upload (indicated by placeholder row)
+    const isPDFUpload = rows.length === 1 && rows[0].aiCategory === "PDF_UPLOAD";
+    
+    console.log("🚀 Starting import process...");
+    console.log("Tenant ID:", tenantId);
+    console.log("Selected Account ID:", selectedAccountId);
+    console.log("Is PDF Upload:", isPDFUpload);
+    console.log("File name:", fileName);
+    console.log("Rows count:", rows.length);
+    
+    // Account ID is now optional - backend will auto-create if not provided
+    // if (!selectedAccountId) {
+    //   toast({
+    //     title: isAr ? "الرجاء اختيار حساب بنكي" : "Please select a bank account",
+    //     description: isAr ? "يجب اختيار حساب بنكي قبل الاستيراد" : "You must select a bank account before importing",
+    //     variant: "destructive",
+    //   });
+    //   return;
+    // }
     
     try {
-      // Import via JSON API (structured data after AI review)
-      const { importBankJSON } = await import('@/lib/api/operations-api');
       
-      const payload = {
-        account_id: selectedAccountId,
-        transactions: rows.map(r => ({
-          date: r.date,
-          amount: r.amount,
-          currency: r.currency,
-          description: r.aiVendor || r.rawText.substring(0, 100), // Cleaned description
-          raw_text: r.rawText, // Original bank text
-          counterparty: r.aiVendor,
-          category: r.aiCategory.toLowerCase(),
-          ai_vendor: r.aiVendor,
-          ai_confidence: r.aiConfidence,
-        })),
-      };
+      let result;
       
-      const result = await importBankJSON(tenantId, payload);
+      if (isPDFUpload) {
+        // PDF upload - send file directly to backend via CSV endpoint
+        console.log("📄 Uploading PDF directly to backend...");
+        const { importBankCSV } = await import('@/lib/api/operations-api');
+        
+        if (!originalFile) {
+          throw new Error("PDF file not found");
+        }
+        
+        console.log("Calling importBankCSV with:", {
+          tenantId,
+          accountId: selectedAccountId || "00000000-0000-0000-0000-000000000000",
+          fileName: originalFile.name,
+          fileSize: originalFile.size
+        });
+        
+        result = await importBankCSV(
+          tenantId,
+          selectedAccountId || "00000000-0000-0000-0000-000000000000",
+          originalFile
+        );
+        
+        console.log("✅ PDF upload response:", result);
+      } else {
+        // Regular CSV/Excel import via JSON API (structured data after AI review)
+        const { importBankJSON } = await import('@/lib/api/operations-api');
+        
+        const payload = {
+          account_id: selectedAccountId || "00000000-0000-0000-0000-000000000000", // Use nil UUID if no account selected - backend will auto-create
+          transactions: rows.map(r => ({
+            date: r.date,
+            amount: r.amount,
+            currency: r.currency,
+            description: r.aiVendor || r.rawText.substring(0, 100), // Cleaned description
+            raw_text: r.rawText, // Original bank text
+            counterparty: r.aiVendor,
+            category: r.aiCategory.toLowerCase(),
+            ai_vendor: r.aiVendor,
+            ai_confidence: r.aiConfidence,
+          })),
+        };
+        
+        console.log("📊 Calling importBankJSON with:", {
+          tenantId,
+          accountId: payload.account_id,
+          transactionCount: payload.transactions.length
+        });
+        console.log("Sample transaction:", payload.transactions[0]);
+        
+        result = await importBankJSON(tenantId, payload);
+        
+        console.log("✅ JSON import response:", result);
+      }
       
       // Create vendor rules for edited rows (user corrections)
       const { createVendorRule } = await import('@/lib/api/operations-api');
@@ -235,9 +285,18 @@ export default function ImportPage() {
       queryClient.invalidateQueries({ queryKey: ["daily-brief"] });
       queryClient.invalidateQueries({ queryKey: ["vendor-rules"] });
       
+      console.log("📊 Import result:", result);
+      
       const importedCount = result.imported || 0;
       const duplicatesCount = result.duplicates || 0;
       const errorsCount = result.errors || 0;
+      
+      console.log("Import summary:", {
+        imported: importedCount,
+        duplicates: duplicatesCount,
+        errors: errorsCount,
+        totalRows: result.total_rows
+      });
       
       // Build detailed message
       const detailsAr = [
@@ -253,12 +312,16 @@ export default function ImportPage() {
       ].filter(Boolean).join('\n');
       
       toast({
-        title: isAr ? "اكتمل الاستيراد" : "Import Complete",
+        title: isAr ? "✅ تم الاستيراد بنجاح" : "✅ Import successful",
         description: isAr ? detailsAr : detailsEn,
-        variant: importedCount > 0 ? "success" : "destructive",
       });
       
-      router.push(`/reports/analysis?uploaded=true&count=${importedCount}`);
+      handleReset();
+      
+      // Redirect to analysis page after short delay
+      setTimeout(() => {
+        router.push(`/reports/analysis?uploaded=true&count=${importedCount}`);
+      }, 1500);
     } catch (error) {
       console.error('Import failed:', error);
       toast({
@@ -305,6 +368,22 @@ export default function ImportPage() {
                       ? `${(selectedFileSize / 1024).toFixed(1)} KB`
                       : `${selectedFileSize} B`}
                   </Badge>
+                  {fileName && (
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-[10px] font-mono",
+                        fileName.toLowerCase().endsWith('.pdf') && "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400",
+                        fileName.toLowerCase().endsWith('.csv') && "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400",
+                        (fileName.toLowerCase().endsWith('.xls') || fileName.toLowerCase().endsWith('.xlsx')) && "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400"
+                      )}
+                    >
+                      {fileName.toLowerCase().endsWith('.pdf') ? '📄 PDF' : 
+                       fileName.toLowerCase().endsWith('.csv') ? '📊 CSV' : 
+                       (fileName.toLowerCase().endsWith('.xls') || fileName.toLowerCase().endsWith('.xlsx')) ? '📗 Excel' : 
+                       'File'}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {isAr ? "سيتم التحليل تلقائياً بعد الرفع" : "Analysis will run automatically after upload"}
@@ -336,7 +415,7 @@ export default function ImportPage() {
               <p className="text-sm font-medium mb-1">
                 {isDragActive
                   ? (isAr ? "أفلت الملف هنا" : "Drop your file here")
-                  : (isAr ? "اسحب وأفلت كشف حسابك البنكي (CSV، Excel) هنا" : "Drag & drop your bank statement (CSV, Excel) here")}
+                  : (isAr ? "اسحب وأفلت كشف حسابك البنكي (CSV، Excel، PDF) هنا" : "Drag & drop your bank statement (CSV, Excel, PDF) here")}
               </p>
               <p className="text-xs text-muted-foreground mb-4">
                 {isAr
@@ -344,8 +423,11 @@ export default function ImportPage() {
                   : "Mustashar AI will automatically clean, categorize, and map your transactions in seconds"}
               </p>
               <div className="flex justify-center gap-1.5">
-                {[".csv", ".xls", ".xlsx"].map((ext) => (
-                  <Badge key={ext} variant="outline" className="text-[10px] font-mono">{ext}</Badge>
+                {[".csv", ".xls", ".xlsx", ".pdf"].map((ext) => (
+                  <Badge key={ext} variant="outline" className={cn(
+                    "text-[10px] font-mono",
+                    ext === ".pdf" && "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400"
+                  )}>{ext}</Badge>
                 ))}
               </div>
             </div>
@@ -428,7 +510,7 @@ export default function ImportPage() {
                         <SelectItem value="loading" disabled>
                           {isAr ? "جاري التحميل..." : "Loading..."}
                         </SelectItem>
-                      ) : bankAccounts.length === 0 ? (
+                      ) : !bankAccounts || bankAccounts.length === 0 ? (
                         <SelectItem value="no-accounts" disabled>
                           {isAr ? "لا توجد حسابات" : "No accounts found"}
                         </SelectItem>
@@ -442,8 +524,8 @@ export default function ImportPage() {
                     </SelectContent>
                   </Select>
                   {!selectedAccountId && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      {isAr ? "⚠️ يجب اختيار حساب بنكي قبل الاستيراد" : "⚠️ You must select a bank account before importing"}
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      {isAr ? "ℹ️ اختياري - سيتم إنشاء حساب افتراضي تلقائياً" : "ℹ️ Optional - A default account will be created automatically"}
                     </p>
                   )}
                 </div>
@@ -479,7 +561,6 @@ export default function ImportPage() {
               size="sm" 
               className="gap-1.5" 
               onClick={handleConfirm}
-              disabled={!selectedAccountId}
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               {isAr ? "رفع وتحليل فوراً 🚀" : "Upload & analyze now 🚀"}

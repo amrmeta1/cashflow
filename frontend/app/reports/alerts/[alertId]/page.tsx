@@ -86,7 +86,7 @@ export default function AlertDetailPage() {
     );
   }
 
-  const sev = severityConfig[alert.severity];
+  const sev = severityConfig[alert.severity as keyof typeof severityConfig];
   const SevIcon = sev.icon;
 
   return (
@@ -154,7 +154,7 @@ export default function AlertDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {alert.related_entities.map((entity, i) => (
+              {alert.related_entities?.map((entity: { type: string; id: string }, i: number) => (
                 <div
                   key={i}
                   className="flex items-center gap-2 text-sm text-muted-foreground"

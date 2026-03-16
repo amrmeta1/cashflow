@@ -251,8 +251,8 @@ export function NotificationBell() {
         const lastSeen = typeof window !== "undefined" ? localStorage.getItem(key) : null;
         if (!lastSeen || data.analyzed_at > lastSeen) {
           if (typeof window !== "undefined") localStorage.setItem(key, data.analyzed_at);
-          const severity = riskLevelToSeverity(data.summary.risk_level);
-          const problems = data.summary.total_problems;
+          const severity = riskLevelToSeverity(data.summary?.risk_level ?? "info");
+          const problems = data.summary?.total_problems ?? 0;
           setAnalysisNotification({
             id: `analysis-${data.analyzed_at}`,
             type: "analysis_complete",

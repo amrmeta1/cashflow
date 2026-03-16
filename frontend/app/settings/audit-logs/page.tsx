@@ -122,13 +122,13 @@ export default function AuditLogsPage() {
     let logs = data.data;
 
     if (userFilter) {
-      logs = logs.filter(log => 
+      logs = logs.filter((log: AuditLog) => 
         log.actor_sub.toLowerCase().includes(userFilter.toLowerCase())
       );
     }
 
     if (actionFilter !== "all") {
-      logs = logs.filter(log => 
+      logs = logs.filter((log: AuditLog) => 
         log.action.toLowerCase().includes(actionFilter.toLowerCase())
       );
     }
@@ -142,7 +142,7 @@ export default function AuditLogsPage() {
     };
     
     const rangeMs = ranges[dateRange] || Infinity;
-    logs = logs.filter(log => 
+    logs = logs.filter((log: AuditLog) => 
       now - new Date(log.occurred_at).getTime() < rangeMs
     );
 
@@ -155,7 +155,7 @@ export default function AuditLogsPage() {
 
     const headers = ["Timestamp", "User", "Action", "Entity Type", "Entity ID", "IP Address"];
     
-    const rows = filteredLogs.map(log => [
+    const rows = filteredLogs.map((log: AuditLog) => [
       new Date(log.occurred_at).toISOString(),
       log.actor_sub,
       log.action,
@@ -166,7 +166,7 @@ export default function AuditLogsPage() {
 
     const csvContent = [
       headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      ...rows.map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(","))
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -208,7 +208,7 @@ export default function AuditLogsPage() {
             <Input
               placeholder={isAr ? "تصفية حسب المستخدم..." : "Filter by user..."}
               value={userFilter}
-              onChange={(e) => setUserFilter(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUserFilter(e.target.value)}
               className="max-w-xs"
             />
 

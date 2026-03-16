@@ -41,11 +41,18 @@ export async function importBankCSV(
   accountId: string,
   file: File
 ): Promise<ImportResult> {
+  console.log('📤 importBankCSV called:', { tenantId, accountId, fileName: file.name, fileSize: file.size });
+  
   const formData = new FormData();
   formData.append('file', file);
   formData.append('account_id', accountId);
+  
+  console.log('FormData created with file and account_id');
+  console.log('Endpoint:', `/tenants/${tenantId}/imports/bank-csv`);
 
-  return ingestionApi.post(`/tenants/${tenantId}/imports/bank-csv`, formData);
+  const result = await ingestionApi.post(`/tenants/${tenantId}/imports/bank-csv`, formData) as ImportResult;
+  console.log('📥 importBankCSV response:', result);
+  return result;
 }
 
 // JSON Import (structured data after AI review)
@@ -53,7 +60,16 @@ export async function importBankJSON(
   tenantId: string,
   payload: ImportBankJSONPayload
 ): Promise<ImportResult> {
-  return tenantApi.post(`/api/v1/tenants/${tenantId}/imports/bank-json`, payload);
+  console.log('📤 importBankJSON called:', { 
+    tenantId, 
+    accountId: payload.account_id, 
+    transactionCount: payload.transactions.length 
+  });
+  console.log('Endpoint:', `/api/v1/tenants/${tenantId}/imports/bank-json`);
+  
+  const result = await tenantApi.post(`/api/v1/tenants/${tenantId}/imports/bank-json`, payload) as ImportResult;
+  console.log('📥 importBankJSON response:', result);
+  return result;
 }
 
 // Sync Jobs
@@ -69,12 +85,33 @@ export async function runAnalysis(tenantId: string): Promise<void> {
   await ingestionApi.post(`/tenants/${tenantId}/analysis/run`);
 }
 
-export async function getAnalysisLatest(tenantId: string): Promise<any> {
-  return tenantApi.get(`/api/v1/tenants/${tenantId}/analysis/latest`);
+interface AnalysisResponse {
+  transaction_count?: number;
+  summary?: {
+    health_score?: number;
+    [key: string]: any;
+  };
+  [key: string]: any;
 }
 
-export async function getCashPosition(tenantId: string): Promise<any> {
-  return tenantApi.get(`/api/v1/tenants/${tenantId}/cash-position`);
+export async function getAnalysisLatest(tenantId: string): Promise<AnalysisResponse> {
+  console.log('📤 getAnalysisLatest called:', { tenantId });
+  console.log('Endpoint:', `/api/v1/tenants/${tenantId}/analysis/latest`);
+  
+  const result = await tenantApi.get(`/api/v1/tenants/${tenantId}/analysis/latest`) as AnalysisResponse;
+  
+  console.log('📥 getAnalysisLatest response:', {
+    hasData: !!result,
+    transactionCount: result?.transaction_count,
+    healthScore: result?.summary?.health_score
+  });
+  
+  return result;
+}
+
+export async function getCashPosition(tenantId: string, asOf?: string): Promise<any> {
+  const params: Record<string, string> | undefined = asOf ? { asOf } : undefined;
+  return tenantApi.get(`/api/v1/tenants/${tenantId}/cash-position`, params);
 }
 
 // Bank Accounts
@@ -87,8 +124,9 @@ export interface BankAccount {
 }
 
 export async function getBankAccounts(tenantId: string): Promise<BankAccount[]> {
-  const response = await tenantApi.get(`/api/v1/tenants/${tenantId}/bank-accounts`);
-  return response as BankAccount[];
+  const response = await tenantApi.get(`/api/v1/tenants/${tenantId}/bank-accounts`) as any;
+  // Backend returns { accounts: [...], total: N }, extract the accounts array
+  return Array.isArray(response) ? response : (response?.accounts || []);
 }
 
 // Vendor Rules

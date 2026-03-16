@@ -21,7 +21,7 @@ export function useRecommendedActions(
     staleTime = 5 * 60_000, // 5 minutes
   } = options;
 
-  return useQuery<ActionsData, Error>({
+  return useQuery({
     queryKey: ["recommended-actions", tenantId],
     queryFn: () => {
       if (!tenantId) {
@@ -33,6 +33,6 @@ export function useRecommendedActions(
     staleTime,
     gcTime: 10 * 60_000, // 10 minutes
     retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 }

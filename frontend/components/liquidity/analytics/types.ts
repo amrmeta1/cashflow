@@ -1,4 +1,4 @@
-import type { Category } from "../transactions/types";
+import type { Category } from "@/components/reports/transactions/types";
 
 export interface WaterfallBar {
   category: Category;

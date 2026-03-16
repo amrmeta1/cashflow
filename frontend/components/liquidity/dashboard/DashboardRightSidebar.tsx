@@ -14,6 +14,7 @@ import { useTransactions } from "@/components/reports/transactions/hooks";
 import { useCommandMenu } from "@/lib/command-store";
 import type { CashPositionExplanation } from "@/components/liquidity/cash-position/types";
 import { CashPositionExplanationPanel } from "@/components/liquidity/cash-position/CashPositionExplanationPanel";
+import { AIInsightCard } from "./ai-insight-card";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_WIDTH = 260;
@@ -117,6 +118,9 @@ export function DashboardRightSidebar() {
             {isAr ? "اسأل مستشار" : "Ask Mustashar"}
           </Button>
         </div>
+
+        {/* AI Insight */}
+        <AIInsightCard tenantId={currentTenant?.id} isAr={isAr} />
 
         {/* 2. Liquidity Summary — compact */}
         <div className="space-y-2">

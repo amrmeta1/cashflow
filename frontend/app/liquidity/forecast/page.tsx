@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { ChevronDown, RefreshCw, Settings2, Wallet, ArrowUpCircle, TrendingUp, LayoutGrid, X, Eye, EyeOff, Trash2, Star } from "lucide-react";
+import { ChevronDown, RefreshCw, Settings2, Wallet, ArrowUpCircle, TrendingUp, TrendingDown, LayoutGrid, X, Eye, EyeOff, Trash2, Star } from "lucide-react";
 import { Button } from "@/components/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/shared/ui/card";
 import { Skeleton } from "@/components/shared/ui/skeleton";
@@ -15,6 +15,16 @@ import type { CashflowMonthPoint } from "@/components/liquidity/forecast/MasterF
 import { ForecastChart } from "@/components/liquidity/forecast/forecast-chart";
 import { useForecast } from "@/lib/hooks/useForecast";
 import { getTenantId } from "@/lib/api/client";
+import { LiquidityRiskBadge } from "@/components/liquidity/forecast/LiquidityRiskBadge";
+import { CashflowPatternsCard } from "@/components/liquidity/dna/CashflowPatternsCard";
+import { UpcomingCashEvents } from "@/components/liquidity/events/UpcomingCashEvents";
+import { PaymentMarkers } from "@/components/liquidity/forecast/PaymentMarkers";
+import { CashflowDNATimeline } from "@/components/liquidity/forecast/CashflowDNATimeline";
+import { SmartAlerts } from "@/components/liquidity/forecast/SmartAlerts";
+import { ExportButton } from "@/components/liquidity/forecast/ExportButton";
+import { AIInsightsCard } from "@/components/liquidity/forecast/AIInsightsCard";
+import { ScenarioVisualDiff } from "@/components/liquidity/forecast/ScenarioVisualDiff";
+import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 
 const MasterForecastChart = dynamic(
   () => import("@/components/liquidity/forecast/MasterForecastChart").then((m) => ({ default: m.MasterForecastChart })),
@@ -100,6 +110,18 @@ function getChartData(isAr: boolean): CashflowMonthPoint[] {
     { month: m[7], inflowFuture: 1_300_000, outflowFuture: 1_010_000, balanceForecast: 3_910_000 },
     { month: m[8], inflowFuture: 1_250_000, outflowFuture: 960_000,  balanceForecast: 4_200_000 },
   ];
+}
+
+function calculateMonthlyBurn(chartData: CashflowMonthPoint[]): number {
+  const months = chartData.filter(p => p.inflow != null && p.outflow != null);
+  if (months.length === 0) return 0;
+  
+  const totalBurn = months.reduce((sum, p) => {
+    const netFlow = (p.outflow || 0) - (p.inflow || 0);
+    return sum + netFlow;
+  }, 0);
+  
+  return totalBurn / months.length;
 }
 
 function getGridRows(isAr: boolean): GridRow[] {
@@ -190,7 +212,16 @@ export default function ForecastPage() {
   } = useScenario();
   const isAr = locale === "ar";
   const tenantId = getTenantId();
-  const { data: forecastData, isLoading: forecastLoading, error: forecastError } = useForecast(tenantId);
+  const { data: forecastData, isLoading: forecastLoading, error: forecastError, refetch } = useForecast(tenantId);
+  
+  // Real-time updates - refresh data every 30 seconds
+  useRealtimeUpdates({
+    enabled: !!tenantId,
+    interval: 30000,
+    onUpdate: () => {
+      refetch?.();
+    },
+  });
 
   const [visibleScenarioIds, setVisibleScenarioIds] = useState<Set<string>>(new Set());
   const prevScenariosLengthRef = useRef(0);
@@ -209,6 +240,14 @@ export default function ForecastPage() {
   const months = getMonths(isAr);
   const baseForecastChartData = useMemo(() => getChartData(isAr), [isAr]);
   const baseForecastGridRows = useMemo(() => getGridRows(isAr), [isAr]);
+
+  // Map payment events to chart months for markers
+  const paymentEvents = useMemo(() => [
+    { month: months[3], type: "payroll" as const, label: isAr ? "الرواتب" : "Payroll" },
+    { month: months[4], type: "subscription" as const, label: isAr ? "اشتراك AWS" : "AWS subscription" },
+    { month: months[5], type: "vendor" as const, label: isAr ? "إيجار المكتب" : "Office Rent" },
+    { month: months[6], type: "subscription" as const, label: isAr ? "Microsoft 365" : "Microsoft 365" },
+  ], [months, isAr]);
 
   const scenarioForecastChartData = useMemo(
     () =>
@@ -247,6 +286,11 @@ export default function ForecastPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          <ExportButton
+            forecastData={chartData}
+            isAr={isAr}
+            currencyCode={currCode}
+          />
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
             {isAr ? "تحديث الحساب" : "Recalculate"}
@@ -276,6 +320,55 @@ export default function ForecastPage() {
             {isAr ? "مسح الكل" : "Clear all"}
           </Button>
         </div>
+      )}
+
+      {/* ══ SMART ALERTS ══ */}
+      <SmartAlerts
+        forecastData={chartData}
+        upcomingEvents={paymentEvents.map(e => ({
+          name: e.label,
+          amount: e.type === 'payroll' ? -320000 : e.type === 'subscription' ? -11950 : -45000,
+          daysUntil: months.indexOf(e.month) * 7
+        }))}
+        isAr={isAr}
+        formatAmount={fmt}
+      />
+
+      {/* ══ AI INSIGHTS ══ */}
+      <AIInsightsCard
+        tenantId={tenantId}
+        forecastData={chartData}
+        isAr={isAr}
+        currency={currCode}
+      />
+
+      {/* ══ CASHFLOW PATTERNS ══ */}
+      <CashflowPatternsCard
+        tenantId={null}
+        currency={currCode}
+        isAr={isAr}
+      />
+
+      {/* ══ SCENARIO VISUAL DIFF ══ */}
+      {scenarios.length >= 2 && (
+        <ScenarioVisualDiff
+          baseScenario={{
+            name: isAr ? "السيناريو A" : "Scenario A",
+            data: chartData.map(d => ({
+              month: d.month,
+              balance: d.balance || d.balanceForecast || 0
+            }))
+          }}
+          compareScenario={{
+            name: isAr ? "السيناريو B" : "Scenario B",
+            data: chartData.map(d => ({
+              month: d.month,
+              balance: (d.balance || d.balanceForecast || 0) * 1.15 // Mock 15% improvement
+            }))
+          }}
+          isAr={isAr}
+          formatAmount={fmt}
+        />
       )}
 
       {/* ══ SCENARIO COMPARISON: Switcher + Chart + Summary ══ */}
@@ -349,7 +442,7 @@ export default function ForecastPage() {
               <ForecastChart
                 base={forecastData.forecast.map(p => p.baseline)}
                 scenarios={scenarios}
-                labels={forecastData.forecast.map(p => isAr ? `أسبوع ${p.week_number}` : `Week ${p.week_number}`)}
+                labels={forecastData.forecast.map(p => isAr ? `أسبوع ${p.week}` : `Week ${p.week}`)}
                 fmt={fmt}
                 fmtAxis={fmtAxis}
                 isAr={isAr}
@@ -417,6 +510,13 @@ export default function ForecastPage() {
         </Card>
       )}
 
+      {/* ══ UPCOMING CASH EVENTS ══ */}
+      <UpcomingCashEvents
+        tenantId={null}
+        currency={currCode}
+        isAr={isAr}
+      />
+
       {/* ══ SPLIT VIEW ══ */}
       <div className="flex flex-col xl:flex-row gap-6 w-full max-w-[1600px] mx-auto">
 
@@ -442,11 +542,11 @@ export default function ForecastPage() {
             icon={TrendingUp}
           />
           <KpiCard
-            value={fmt(1_497_600)}
-            label={isAr ? "الإجمالي" : "Total"}
-            dotColor="bg-zinc-500"
-            gradient="bg-muted/30"
-            icon={LayoutGrid}
+            value={fmt(calculateMonthlyBurn(baseForecastChartData))}
+            label={isAr ? "الحرق الشهري" : "Monthly Burn"}
+            dotColor="bg-rose-500"
+            gradient="bg-gradient-to-br from-rose-50/70 to-transparent dark:from-rose-950/20"
+            icon={TrendingDown}
           />
         </div>
 
@@ -456,15 +556,18 @@ export default function ForecastPage() {
           {/* Chart */}
           <div className="h-auto p-4 border-b relative">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-semibold">
-                  {isAr ? "عرض التدفق النقدي الرئيسي" : "Master Cashflow View"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isAr
-                    ? "Master Cashflow View · فبراير — أكتوبر"
-                    : "Master Cashflow View · February — October"}
-                </p>
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-sm font-semibold">
+                    {isAr ? "عرض التدفق النقدي الرئيسي" : "Master Cashflow View"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isAr
+                      ? "Master Cashflow View · فبراير — أكتوبر"
+                      : "Master Cashflow View · February — October"}
+                  </p>
+                </div>
+                <LiquidityRiskBadge forecastData={chartData} isAr={isAr} />
               </div>
               <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1.5">
@@ -485,8 +588,14 @@ export default function ForecastPage() {
                 </span>
               </div>
             </div>
-            <MasterForecastChart data={chartData} fmt={fmt} fmtAxis={fmtAxis} currCode={currCode} />
+            <div className="relative">
+              <MasterForecastChart data={chartData} fmt={fmt} fmtAxis={fmtAxis} currCode={currCode} />
+              <PaymentMarkers events={paymentEvents} months={months} isAr={isAr} />
+            </div>
           </div>
+
+          {/* Cashflow DNA Timeline */}
+          <CashflowDNATimeline tenantId={tenantId} isAr={isAr} currency={currCode} />
 
           {/* Synced Data Grid */}
           <div className="flex-1 overflow-x-auto">
