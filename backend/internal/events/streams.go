@@ -4,15 +4,13 @@ import "github.com/nats-io/nats.go/jetstream"
 
 // Stream names
 const (
-	StreamCashflow = "CASHFLOW"
-	StreamDLQ      = "CASHFLOW_DLQ"
+	StreamDLQ = "CASHFLOW_DLQ"
 )
 
 // Subject constants — all subjects live under the CASHFLOW stream.
 const (
 	SubjectTransactionsIngested = "cashflow.transactions.ingested"
 	SubjectInvoicesSynced       = "cashflow.invoices.synced"
-	SubjectForecastGenerated    = "cashflow.forecast.generated"
 	SubjectAlertTriggered       = "cashflow.alert.triggered"
 )
 

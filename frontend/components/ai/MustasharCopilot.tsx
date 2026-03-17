@@ -3,9 +3,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, X, Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/shared/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/shared/ui/card";
+import { Input } from "@/components/shared/ui/input";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useI18n } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";

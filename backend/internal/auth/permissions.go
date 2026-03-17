@@ -4,19 +4,19 @@ package auth
 type Permission string
 
 const (
-	PermTenantCreate      Permission = "tenant:create"
-	PermTenantRead        Permission = "tenant:read"
-	PermTenantUpdate      Permission = "tenant:update"
-	PermTenantDelete      Permission = "tenant:delete"
-	PermMemberAdd         Permission = "member:add"
-	PermMemberRead        Permission = "member:read"
-	PermMemberRemove      Permission = "member:remove"
-	PermMemberRoleChange  Permission = "member:role_change"
-	PermRoleCreate        Permission = "role:create"
-	PermRoleRead          Permission = "role:read"
-	PermRoleUpdate        Permission = "role:update"
-	PermAuditRead         Permission = "audit:read"
-	PermUserReadSelf      Permission = "user:read_self"
+	PermTenantCreate     Permission = "tenant:create"
+	PermTenantRead       Permission = "tenant:read"
+	PermTenantUpdate     Permission = "tenant:update"
+	PermTenantDelete     Permission = "tenant:delete"
+	PermMemberAdd        Permission = "member:add"
+	PermMemberRead       Permission = "member:read"
+	PermMemberRemove     Permission = "member:remove"
+	PermMemberRoleChange Permission = "member:role_change"
+	PermRoleCreate       Permission = "role:create"
+	PermRoleRead         Permission = "role:read"
+	PermRoleUpdate       Permission = "role:update"
+	PermAuditRead        Permission = "audit:read"
+	PermUserReadSelf     Permission = "user:read_self"
 
 	// Ingestion Service permissions
 	PermIngestionImport   Permission = "ingestion:import"

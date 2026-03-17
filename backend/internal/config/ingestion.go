@@ -12,12 +12,12 @@ type IngestionConfig struct {
 }
 
 type RabbitMQConfig struct {
-	URL              string `envconfig:"RABBITMQ_URL"`
-	ReconnectDelay   int    `envconfig:"RABBITMQ_RECONNECT_DELAY" default:"5"`    // seconds
-	PublishRetries   int    `envconfig:"RABBITMQ_PUBLISH_RETRIES" default:"3"`
-	PrefetchCount    int    `envconfig:"RABBITMQ_PREFETCH_COUNT" default:"10"`
-	RetryTTL5s       int    `envconfig:"RABBITMQ_RETRY_TTL_5S" default:"5000"`    // ms
-	RetryTTL30s      int    `envconfig:"RABBITMQ_RETRY_TTL_30S" default:"30000"`  // ms
+	URL            string `envconfig:"RABBITMQ_URL"`
+	ReconnectDelay int    `envconfig:"RABBITMQ_RECONNECT_DELAY" default:"5"` // seconds
+	PublishRetries int    `envconfig:"RABBITMQ_PUBLISH_RETRIES" default:"3"`
+	PrefetchCount  int    `envconfig:"RABBITMQ_PREFETCH_COUNT" default:"10"`
+	RetryTTL5s     int    `envconfig:"RABBITMQ_RETRY_TTL_5S" default:"5000"`   // ms
+	RetryTTL30s    int    `envconfig:"RABBITMQ_RETRY_TTL_30S" default:"30000"` // ms
 }
 
 func (r RabbitMQConfig) String() string {

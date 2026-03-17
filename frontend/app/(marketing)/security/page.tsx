@@ -14,7 +14,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/shared/ui/card";
 import { useI18n } from "@/lib/i18n/context";
 
 const SECURITY_FEATURES = [

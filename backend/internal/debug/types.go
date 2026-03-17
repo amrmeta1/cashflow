@@ -15,20 +15,20 @@ type CheckResult struct {
 
 // DiagnosticReport contains all diagnostic results
 type DiagnosticReport struct {
-	Timestamp      time.Time      `json:"timestamp"`
-	Environment    string         `json:"environment"`
-	Version        string         `json:"version"`
-	Checks         []CheckResult  `json:"checks"`
-	Summary        Summary        `json:"summary"`
-	TotalDuration  time.Duration  `json:"total_duration"`
+	Timestamp     time.Time     `json:"timestamp"`
+	Environment   string        `json:"environment"`
+	Version       string        `json:"version"`
+	Checks        []CheckResult `json:"checks"`
+	Summary       Summary       `json:"summary"`
+	TotalDuration time.Duration `json:"total_duration"`
 }
 
 // Summary provides an overview of check results
 type Summary struct {
-	Total   int `json:"total"`
-	Passed  int `json:"passed"`
-	Failed  int `json:"failed"`
-	Warned  int `json:"warned"`
+	Total   int  `json:"total"`
+	Passed  int  `json:"passed"`
+	Failed  int  `json:"failed"`
+	Warned  int  `json:"warned"`
 	Healthy bool `json:"healthy"`
 }
 

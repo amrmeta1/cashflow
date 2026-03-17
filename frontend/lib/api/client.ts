@@ -83,6 +83,25 @@ class ApiClient {
     return res.json();
   }
 
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    const h = await this.headers();
+    const isFormData = body instanceof FormData;
+    if (!isFormData) {
+      (h as Record<string, string>)["Content-Type"] = "application/json";
+    }
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: "PATCH",
+      headers: h,
+      body: isFormData ? body : body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({ error: res.statusText }));
+      throw new ApiClientError(res.status, err.error);
+    }
+    if (res.status === 204) return undefined as T;
+    return res.json();
+  }
+
   async delete<T>(path: string): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "DELETE",
@@ -107,9 +126,9 @@ export class ApiClientError extends Error {
 }
 
 export const tenantApi = new ApiClient(
-  process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : "")
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 );
 
 export const ingestionApi = new ApiClient(
-  process.env.NEXT_PUBLIC_INGESTION_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : "")
+  process.env.NEXT_PUBLIC_INGESTION_API_BASE_URL || "http://localhost:8080"
 );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { getCashPosition } from "@/lib/api/ingestion-api";
+import { getCashPosition } from "@/lib/api/operations-api";
 import type { CashPositionResponse } from "@/lib/api/types";
 
 const QUERY_KEY = "cash-position";
@@ -34,7 +34,7 @@ export function useCashPosition(tenantId: string | undefined, asOf?: string) {
   });
 
   const totalBalance =
-    query.data?.totals?.byCurrency?.reduce((sum, c) => sum + c.balance, 0) ?? 0;
+    query.data?.totals?.byCurrency?.reduce((sum: number, c: any) => sum + c.balance, 0) ?? 0;
 
   return {
     data: query.data ?? null,
@@ -74,7 +74,7 @@ export function useCashPositionHistory(
       const data = q.data;
       if (!data) return null;
       const total =
-        data.totals?.byCurrency?.reduce((s, c) => s + c.balance, 0) ?? 0;
+        data.totals?.byCurrency?.reduce((s: number, c: any) => s + c.balance, 0) ?? 0;
       return {
         date: asOfDates[i],
         asOf: asOfDates[i],

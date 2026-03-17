@@ -72,9 +72,9 @@ func (c *APIConnectivityChecker) Check() CheckResult {
 	}
 
 	details := map[string]interface{}{
-		"frontend_path":    c.FrontendPath,
-		"localhost_refs":   localhostRefs,
-		"env_var_issues":   envVarIssues,
+		"frontend_path":  c.FrontendPath,
+		"localhost_refs": localhostRefs,
+		"env_var_issues": envVarIssues,
 	}
 
 	suggestions := []string{}

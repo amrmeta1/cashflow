@@ -10,15 +10,15 @@ import (
 // Envelope is the canonical event wrapper for all messages on NATS JetStream.
 // Every event published through the system uses this schema.
 type Envelope struct {
-	EventID    string         `json:"event_id"`
-	EventType  string         `json:"event_type"`
-	TenantID   string         `json:"tenant_id"`
-	OccurredAt time.Time      `json:"occurred_at"`
-	Version    int            `json:"version"`
-	Payload    json.RawMessage `json:"payload"`
-	TraceID    string         `json:"trace_id,omitempty"`
-	SpanID     string         `json:"span_id,omitempty"`
-	IdempotencyKey string     `json:"idempotency_key"`
+	EventID        string          `json:"event_id"`
+	EventType      string          `json:"event_type"`
+	TenantID       string          `json:"tenant_id"`
+	OccurredAt     time.Time       `json:"occurred_at"`
+	Version        int             `json:"version"`
+	Payload        json.RawMessage `json:"payload"`
+	TraceID        string          `json:"trace_id,omitempty"`
+	SpanID         string          `json:"span_id,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key"`
 }
 
 // NewEnvelope creates a new event envelope with a generated event_id and idempotency_key.

@@ -9,18 +9,26 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/finch-co/cashflow/internal/agent/engine"
+	"github.com/finch-co/cashflow/internal/agent/handler"
+	"github.com/finch-co/cashflow/internal/agent/repository"
+	"github.com/finch-co/cashflow/internal/ai"
+	"github.com/finch-co/cashflow/internal/api"
+	"github.com/finch-co/cashflow/internal/api/handlers"
+	"github.com/finch-co/cashflow/internal/auth"
+	"github.com/finch-co/cashflow/internal/config"
+	"github.com/finch-co/cashflow/internal/db"
+	"github.com/finch-co/cashflow/internal/db/repositories"
+	"github.com/finch-co/cashflow/internal/enterprise"
+	"github.com/finch-co/cashflow/internal/events"
+	"github.com/finch-co/cashflow/internal/liquidity"
+	"github.com/finch-co/cashflow/internal/observability"
+	"github.com/finch-co/cashflow/internal/operations"
+	"github.com/finch-co/cashflow/internal/treasury/pipeline"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
-	"github.com/finch-co/cashflow/internal/adapter/db"
-	httpAdapter "github.com/finch-co/cashflow/internal/adapter/http"
-	"github.com/finch-co/cashflow/internal/auth"
-	"github.com/finch-co/cashflow/internal/config"
-	"github.com/finch-co/cashflow/internal/events"
-	"github.com/finch-co/cashflow/internal/observability"
-	"github.com/finch-co/cashflow/internal/usecase"
 )
 
 func main() {
@@ -81,7 +89,7 @@ func run() error {
 	// Init Keycloak auth (OPTIONAL - for demo mode, can be disabled)
 	var jwtValidator *auth.Validator
 	authDevMode := os.Getenv("AUTH_DEV_MODE")
-	
+
 	if authDevMode == "true" || authDevMode == "1" {
 		log.Warn().Msg("AUTH DISABLED - running in demo mode without authentication")
 		jwtValidator = nil
@@ -95,29 +103,160 @@ func run() error {
 	}
 
 	// Init repositories
-	tenantRepo := db.NewTenantRepo(pool)
-	userRepo := db.NewUserRepo(pool)
-	membershipRepo := db.NewMembershipRepo(pool)
-	auditRepo := db.NewAuditLogRepo(pool)
+	tenantRepo := repositories.NewTenantRepo(pool)
+	userRepo := repositories.NewUserRepo(pool)
+	membershipRepo := repositories.NewMembershipRepo(pool)
+	auditRepo := repositories.NewAuditLogRepo(pool)
+	bankTxnRepo := repositories.NewBankTransactionRepo(pool)
 
 	// Init use cases
-	tenantUC := usecase.NewTenantUseCase(tenantRepo, membershipRepo, auditRepo)
-	memberUC := usecase.NewMemberUseCase(userRepo, membershipRepo, auditRepo)
+	tenantUC := enterprise.NewTenantUseCase(tenantRepo, membershipRepo, auditRepo)
+	memberUC := enterprise.NewMemberUseCase(userRepo, membershipRepo, auditRepo)
 
 	// Init HTTP handlers
-	tenantHandler := httpAdapter.NewTenantHandler(tenantUC)
-	memberHandler := httpAdapter.NewMemberHandler(memberUC)
-	auditHandler := httpAdapter.NewAuditHandler(auditRepo)
+	tenantHandler := handlers.NewTenantHandler(tenantUC)
+	memberHandler := handlers.NewMemberHandler(memberUC)
+	auditHandler := handlers.NewAuditHandler(auditRepo)
+
+	// RAG handlers - proxy to RAG service
+	ragServiceURL := os.Getenv("RAG_SERVICE_URL")
+	var ragProxy *handlers.RAGProxyHandler
+
+	if ragServiceURL != "" {
+		ragProxy = handlers.NewRAGProxyHandler(ragServiceURL)
+		fmt.Printf("✓ RAG handlers enabled (proxy to %s)\n", ragServiceURL)
+	} else {
+		fmt.Println("⚠ RAG handlers disabled (RAG_SERVICE_URL not set)")
+	}
+
+	// Operations handler for cash position
+	// Initialize with minimal dependencies - will need bank account repo
+	bankAccountRepo := repositories.NewBankAccountRepo(pool)
+
+	// Initialize Vendor Learning and Identity services
+	vendorRuleRepo := repositories.NewVendorRuleRepo(pool)
+	vendorLearning := operations.NewVendorLearningService(vendorRuleRepo)
+
+	vendorRepo := repositories.NewVendorRepo(pool)
+	vendorIdentity := operations.NewVendorIdentityService(vendorRepo)
+
+	// Initialize Vendor Stats service
+	vendorStatsRepo := repositories.NewVendorStatsRepo(pool)
+	vendorStats := operations.NewVendorStatsService(vendorStatsRepo)
+
+	// Initialize Cash Flow DNA service
+	cashFlowPatternRepo := repositories.NewCashFlowPatternRepo(pool)
+	cashFlowDNA := operations.NewCashFlowDNAService(cashFlowPatternRepo, bankTxnRepo)
+
+	// Signal Engine (AI Agent Phase A)
+	signalRepo := repository.NewSignalRepository(pool)
+	forecastUC := liquidity.NewForecastUseCase(bankTxnRepo, bankAccountRepo)
+	signalEngine := engine.NewSignalEngine(bankTxnRepo, signalRepo, forecastUC)
+	signalHandler := handler.NewSignalHandler(signalEngine)
+	fmt.Println("✓ Signal Engine initialized (Phase A - deterministic)")
+
+	// Initialize Advisor service and AI Classifier
+	advisorUC := liquidity.NewAdvisorUseCase()
+	classifier := ai.NewTransactionClassifier(bankTxnRepo)
+
+	// Initialize repositories needed for ingestion
+	rawTxnRepo := repositories.NewRawBankTransactionRepo(pool)
+	jobRepo := repositories.NewIngestionJobRepo(pool)
+	idempotencyRepo := repositories.NewIdempotencyRepo(pool)
+	analysisRepo := repositories.NewAnalysisRepo(pool)
+
+	// Initialize Analysis Service
+	analysisService := operations.NewAnalysisService(analysisRepo, bankTxnRepo)
+
+	// ========================================
+	// NEW: Treasury Pipeline Worker Setup
+	// ========================================
+	var pipelineWorker *pipeline.Worker
+
+	if js != nil {
+		// Create pipeline orchestrator
+		orchestrator := pipeline.NewOrchestrator(
+			classifier,
+			vendorStats,
+			cashFlowDNA,
+			forecastUC,
+			advisorUC,
+			analysisService,
+		)
+
+		log.Info().Msg("pipeline orchestrator created")
+
+		// Create pipeline worker
+		var err error
+		pipelineWorker, err = pipeline.NewWorker(js, orchestrator)
+		if err != nil {
+			log.Error().Err(err).Msg("failed to create pipeline worker - continuing without it")
+		} else {
+			log.Info().Msg("pipeline worker created successfully")
+
+			// Start worker in background
+			go func() {
+				log.Info().Msg("starting treasury pipeline worker...")
+				if err := pipelineWorker.Start(ctx); err != nil {
+					log.Error().Err(err).Msg("pipeline worker failed")
+				}
+			}()
+		}
+	} else {
+		log.Warn().Msg("pipeline worker disabled - NATS not available")
+	}
+	// ========================================
+
+	// AI Advisor handlers - create with analysisRepo
+	analysisHandler := handlers.NewAnalysisHandler(bankTxnRepo, analysisRepo)
+
+	ingestionUC := operations.NewUseCase(bankAccountRepo, rawTxnRepo, bankTxnRepo, jobRepo, idempotencyRepo, nil, vendorLearning, vendorIdentity, vendorStats, cashFlowDNA, forecastUC, advisorUC, classifier, analysisService)
+	ingestionHandler := operations.NewIngestionHandler(ingestionUC)
+
+	// Vendor handlers
+	vendorRuleHandler := operations.NewVendorRuleHandler(vendorLearning)
+	vendorHandler := operations.NewVendorHandler(vendorStats)
+
+	// Cash Flow DNA handler
+	cashFlowDNAHandler := operations.NewCashFlowDNAHandler(cashFlowDNA)
+
+	// Analysis Enhancements handler
+	analysisEnhancementsHandler := operations.NewAnalysisEnhancementsHandler(ingestionUC)
+
+	// Liquidity Module (Forecast, Cash Story, Decisions)
+	forecastHandler := liquidity.NewForecastHandler(forecastUC)
+
+	// Note: CashStory and DecisionEngine require LLM client which may not be available
+	// For now, we'll create a composite handler with forecast only
+	// Cash story and decisions will return empty/mock data until LLM is configured
+	var liquidityHandler *liquidity.CompositeHandler
+
+	// Try to initialize with minimal dependencies
+	cashStoryUC := liquidity.NewCashStoryUseCase(bankTxnRepo, forecastUC, nil) // nil LLM client
+	decisionEngine := liquidity.NewDecisionEngine(forecastUC, bankTxnRepo)
+	liquidityHandler = liquidity.NewCompositeHandler(forecastHandler, cashStoryUC, decisionEngine)
+	fmt.Println("✓ Liquidity module initialized (forecast, cash-story, decisions)")
 
 	// Build router
-	router := httpAdapter.NewRouter(httpAdapter.RouterDeps{
-		Validator:   jwtValidator,
-		Users:       userRepo,
-		Memberships: membershipRepo,
-		AuditRepo:   auditRepo,
-		Tenants:     tenantHandler,
-		Members:     memberHandler,
-		Audit:       auditHandler,
+	router := api.NewRouter(api.RouterDeps{
+		Validator:            jwtValidator,
+		Users:                userRepo,
+		Memberships:          membershipRepo,
+		AuditRepo:            auditRepo,
+		Tenants:              tenantHandler,
+		Members:              memberHandler,
+		Audit:                auditHandler,
+		Documents:            ragProxy,
+		Analysis:             analysisHandler,
+		AnalysisEnhancements: analysisEnhancementsHandler,
+		RagQuery:             ragProxy,
+		CashPosition:         ingestionHandler,
+		Ingestion:            ingestionHandler,
+		VendorRules:          vendorRuleHandler,
+		Vendors:              vendorHandler,
+		CashFlowDNA:          cashFlowDNAHandler,
+		Signals:              signalHandler,
+		Liquidity:            liquidityHandler,
 	})
 
 	// Start HTTP server
@@ -149,6 +288,12 @@ func run() error {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer shutdownCancel()
+
+	// Stop pipeline worker gracefully
+	if pipelineWorker != nil {
+		log.Info().Msg("stopping pipeline worker...")
+		pipelineWorker.Stop()
+	}
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("graceful shutdown failed: %w", err)

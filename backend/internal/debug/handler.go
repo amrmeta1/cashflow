@@ -22,7 +22,7 @@ func (h *Handler) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	report := h.runner.RunAll()
 
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	// Set status code based on health
 	if !report.Summary.Healthy {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -38,18 +38,18 @@ func (h *Handler) SimpleStatusHandler(w http.ResponseWriter, r *http.Request) {
 	report := h.runner.RunAll()
 
 	response := map[string]interface{}{
-		"server":            getStatusString(report, "Server Configuration"),
-		"health":            getStatusString(report, "Health Endpoint"),
-		"frontend_assets":   getStatusString(report, "Frontend Assets"),
-		"api_connection":    getStatusString(report, "API Connectivity Configuration"),
-		"docker_image":      getStatusString(report, "Docker Image Content"),
-		"kubernetes":        getStatusString(report, "Kubernetes Runtime"),
-		"overall_healthy":   report.Summary.Healthy,
-		"timestamp":         report.Timestamp,
+		"server":          getStatusString(report, "Server Configuration"),
+		"health":          getStatusString(report, "Health Endpoint"),
+		"frontend_assets": getStatusString(report, "Frontend Assets"),
+		"api_connection":  getStatusString(report, "API Connectivity Configuration"),
+		"docker_image":    getStatusString(report, "Docker Image Content"),
+		"kubernetes":      getStatusString(report, "Kubernetes Runtime"),
+		"overall_healthy": report.Summary.Healthy,
+		"timestamp":       report.Timestamp,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if !report.Summary.Healthy {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	} else {

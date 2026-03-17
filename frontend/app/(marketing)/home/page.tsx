@@ -1,13 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { KyribaMainHero } from "@/components/marketing/kyriba-main-hero";
-import { CashFlowSection } from "@/components/marketing/cash-flow-section";
-import { FinancialAnalysisSection } from "@/components/marketing/financial-analysis-section";
-import { HeroSection } from "@/components/marketing/hero-section";
-import { ConnectSection } from "@/components/marketing/connect-section";
+import { KyribaMainHero } from "@/components/shared/marketing/kyriba-main-hero";
+import { CashFlowSection } from "@/components/shared/marketing/cash-flow-section";
+import { FinancialAnalysisSection } from "@/components/shared/marketing/financial-analysis-section";
+import { HeroSection } from "@/components/shared/marketing/hero-section";
+import { ConnectSection } from "@/components/shared/marketing/connect-section";
 
-import { IntegrationsSection } from "@/components/marketing/integrations-section";
+import { IntegrationsSection } from "@/components/shared/marketing/integrations-section";
 import Link from "next/link";
 import { ArrowRight, Zap, Shield, TrendingUp, DollarSign } from "lucide-react";
 

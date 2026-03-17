@@ -10,9 +10,9 @@ import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { EntityProvider } from "@/contexts/EntityContext";
 import { ScenarioProvider } from "@/contexts/ScenarioContext";
 import { TenantSegmentProvider } from "@/contexts/TenantSegmentContext";
-import { ToastProvider } from "@/components/ui/toast";
+import { ToastProvider } from "@/components/shared/ui/toast";
 import { CommandMenuProvider } from "@/lib/command-store";
-import { CommandPalette } from "@/components/global/command-palette";
+import { CommandPalette } from "@/components/shared/global/command-palette";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -30,7 +30,28 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <ToastProvider>
+          <I18nProvider>
+            <TenantProvider>
+              <TenantSegmentProvider>
+                <CompanyProvider>
+                  <CurrencyProvider>
+                    <EntityProvider>
+                      <ScenarioProvider>
+                        <CommandMenuProvider>
+                          {children}
+                          <CommandPalette />
+                        </CommandMenuProvider>
+                      </ScenarioProvider>
+                    </EntityProvider>
+                  </CurrencyProvider>
+                </CompanyProvider>
+              </TenantSegmentProvider>
+            </TenantProvider>
+          </I18nProvider>
+        </ToastProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

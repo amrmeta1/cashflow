@@ -11,12 +11,12 @@ import (
 
 // Claims represents the validated claims extracted from a Keycloak JWT.
 type Claims struct {
-	Subject     string              // Keycloak user ID (sub)
-	Email       string              // User email
-	TenantID    string              // Custom claim: tenant_id (optional)
-	RealmRoles  []string            // realm_access.roles
-	ClientRoles []string            // resource_access.<client>.roles
-	RawClaims   jwt.MapClaims       // Full claims for extension
+	Subject     string        // Keycloak user ID (sub)
+	Email       string        // User email
+	TenantID    string        // Custom claim: tenant_id (optional)
+	RealmRoles  []string      // realm_access.roles
+	ClientRoles []string      // resource_access.<client>.roles
+	RawClaims   jwt.MapClaims // Full claims for extension
 }
 
 // Validator validates Keycloak-issued JWTs using JWKS (RS256).

@@ -1,12 +1,11 @@
 package middleware
 
 import (
+"github.com/finch-co/cashflow/internal/models"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/finch-co/cashflow/internal/domain"
 )
 
 type tenantWindow struct {
@@ -24,7 +23,7 @@ func TenantRateLimit(limit int, window time.Duration) func(http.Handler) http.Ha
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			tenantID, ok := domain.TenantIDFromContext(r.Context())
+			tenantID, ok := models.TenantIDFromContext(r.Context())
 			if !ok {
 				writeError(w, http.StatusForbidden, "tenant context required")
 				return

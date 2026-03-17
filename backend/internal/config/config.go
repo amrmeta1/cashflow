@@ -13,6 +13,7 @@ type Config struct {
 	Auth     AuthConfig
 	NATS     NATSConfig
 	OTEL     OTELConfig
+	RAG      RAGConfig
 }
 
 type ServerConfig struct {
@@ -66,6 +67,10 @@ type OTELConfig struct {
 	Enabled     bool   `envconfig:"OTEL_ENABLED" default:"false"`
 	ExporterURL string `envconfig:"OTEL_EXPORTER_OTLP_ENDPOINT" default:"http://localhost:4318"`
 	ServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"cashflow-tenant-service"`
+}
+
+type RAGConfig struct {
+	ServiceURL string `envconfig:"RAG_SERVICE_URL" default:"http://localhost:8082"`
 }
 
 func Load() (*Config, error) {

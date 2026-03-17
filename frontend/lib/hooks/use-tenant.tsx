@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { useQueryClient } from "@tanstack/react-query";
 import { setTenantId } from "@/lib/api/client";
 import { TENANT_IDS } from "@/lib/tenant-constants";
-import { DEMO_TENANT } from "@/lib/api/mock-data";
+import { DEMO_TENANT } from "@/lib/mocks/mock-data";
 import type { Tenant, Membership } from "@/lib/api/types";
 
 interface TenantContextValue {
@@ -59,7 +59,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       memberships.length === 0 &&
       currentTenant === null
     ) {
-      setCurrentTenantState(DEMO_TENANT);
+      setCurrentTenantState(DEMO_TENANT as any);
       setTenantId(DEMO_TENANT.id);
     }
   }, [memberships, currentTenant]);

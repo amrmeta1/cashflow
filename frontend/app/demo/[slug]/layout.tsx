@@ -1,9 +1,9 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AppShell } from "@/components/layout/app-shell";
+import { AppShell } from "@/components/shared/layout/app-shell";
 import { DemoProvider } from "@/contexts/DemoContext";
-import { DemoCompanySync } from "@/components/demo/DemoCompanySync";
+import { DemoCompanySync } from "@/components/shared/demo/DemoCompanySync";
 
 /**
  * Client demo layout: provides demo context and company override,

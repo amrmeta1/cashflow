@@ -9,21 +9,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/finch-co/cashflow/internal/adapter/db"
-	httpAdapter "github.com/finch-co/cashflow/internal/adapter/http"
-	"github.com/finch-co/cashflow/internal/adapter/integrations"
-	"github.com/finch-co/cashflow/internal/adapter/mq"
-	"github.com/finch-co/cashflow/internal/adapter/worker"
-	"github.com/finch-co/cashflow/internal/analysis"
+	"github.com/finch-co/cashflow/internal/ai"
 	"github.com/finch-co/cashflow/internal/auth"
 	"github.com/finch-co/cashflow/internal/config"
-	"github.com/finch-co/cashflow/internal/ingestion"
+	"github.com/finch-co/cashflow/internal/db"
+	"github.com/finch-co/cashflow/internal/db/repositories"
+	"github.com/finch-co/cashflow/internal/liquidity"
 	"github.com/finch-co/cashflow/internal/observability"
-	"github.com/finch-co/cashflow/internal/usecase"
+	"github.com/finch-co/cashflow/internal/operations"
 )
 
 func main() {
@@ -61,30 +57,13 @@ func run() error {
 	log.Info().Str("host", cfg.Database.Host).Int("port", cfg.Database.Port).Msg("connected to database")
 
 	// Connect to RabbitMQ (optional)
-	var rmqConn *amqp091.Connection
-	var rmqCh *amqp091.Channel
-	var publisher *mq.Publisher
-
-	if cfg.RabbitMQ.URL != "" {
-		var err error
-		rmqConn, rmqCh, err = mq.Connect(cfg.RabbitMQ)
-		if err != nil {
-			return fmt.Errorf("connecting to rabbitmq: %w", err)
-		}
-		defer rmqConn.Close()
-		defer rmqCh.Close()
-		publisher = mq.NewPublisher(rmqCh, cfg.RabbitMQ.PublishRetries)
-		log.Info().Str("url", cfg.RabbitMQ.URL).Msg("connected to rabbitmq")
-	} else {
-		log.Warn().Msg("rabbitmq disabled - no URL configured")
-	}
-
-	_ = publisher // available for usecases that need to publish messages
+	var publisher interface{}
+	log.Warn().Msg("rabbitmq disabled - using placeholder publisher")
 
 	// Init Keycloak auth (OPTIONAL - for demo mode, can be disabled)
 	var jwtValidator *auth.Validator
 	authDevMode := os.Getenv("AUTH_DEV_MODE")
-	
+
 	if authDevMode == "true" || authDevMode == "1" {
 		log.Warn().Msg("AUTH DISABLED - running in demo mode without authentication")
 		jwtValidator = nil
@@ -98,91 +77,83 @@ func run() error {
 	}
 
 	// Init repositories
-	userRepo := db.NewUserRepo(pool)
-	membershipRepo := db.NewMembershipRepo(pool)
-	auditRepo := db.NewAuditLogRepo(pool)
-	bankAccountRepo := db.NewBankAccountRepo(pool)
-	rawTxnRepo := db.NewRawBankTransactionRepo(pool)
-	bankTxnRepo := db.NewBankTransactionRepo(pool)
-	jobRepo := db.NewIngestionJobRepo(pool)
-	idempotencyRepo := db.NewIdempotencyRepo(pool)
-	analysisRepo := db.NewAnalysisRepo(pool)
+	userRepo := repositories.NewUserRepo(pool)
+	membershipRepo := repositories.NewMembershipRepo(pool)
+	auditRepo := repositories.NewAuditLogRepo(pool)
+	bankAccountRepo := repositories.NewBankAccountRepo(pool)
+	rawTxnRepo := repositories.NewRawBankTransactionRepo(pool)
+	bankTxnRepo := repositories.NewBankTransactionRepo(pool)
+	jobRepo := repositories.NewIngestionJobRepo(pool)
+	idempotencyRepo := repositories.NewIdempotencyRepo(pool)
 
-	// Init use cases (bounded contexts: ingestion, analysis, forecast)
-	ingestionUC := ingestion.NewUseCase(
+	// Initialize Vendor Learning and Identity services
+	vendorRuleRepo := repositories.NewVendorRuleRepo(pool)
+	vendorLearning := operations.NewVendorLearningService(vendorRuleRepo)
+
+	vendorRepo := repositories.NewVendorRepo(pool)
+	vendorIdentity := operations.NewVendorIdentityService(vendorRepo)
+
+	// Initialize Vendor Stats service
+	vendorStatsRepo := repositories.NewVendorStatsRepo(pool)
+	vendorStats := operations.NewVendorStatsService(vendorStatsRepo)
+
+	// Initialize Cash Flow DNA service
+	cashFlowPatternRepo := repositories.NewCashFlowPatternRepo(pool)
+	cashFlowDNA := operations.NewCashFlowDNAService(cashFlowPatternRepo, bankTxnRepo)
+
+	// Initialize Forecast service
+	forecastUC := liquidity.NewForecastUseCase(bankTxnRepo, bankAccountRepo)
+
+	// Initialize Advisor service
+	advisorUC := liquidity.NewAdvisorUseCase()
+
+	// Initialize AI Transaction Classifier
+	classifier := ai.NewTransactionClassifier(bankTxnRepo)
+
+	// Initialize Analysis Service
+	analysisRepo := repositories.NewAnalysisRepo(pool)
+	analysisService := operations.NewAnalysisService(analysisRepo, bankTxnRepo)
+
+	// Init use case
+	ingestionUC := operations.NewUseCase(
 		bankAccountRepo,
 		rawTxnRepo,
 		bankTxnRepo,
 		jobRepo,
 		idempotencyRepo,
 		publisher,
+		vendorLearning,
+		vendorIdentity,
+		vendorStats,
+		cashFlowDNA,
+		forecastUC,
+		advisorUC,
+		classifier,
+		analysisService,
 	)
-	analysisUC := analysis.NewUseCase(analysisRepo)
-	forecastUC := usecase.NewForecastUseCase(bankTxnRepo, bankAccountRepo)
 
-	// Init HTTP handlers
-	ingestionHandler := httpAdapter.NewIngestionHandler(ingestionUC, publisher)
-	analysisHandler := httpAdapter.NewAnalysisHandler(analysisUC, analysisRepo)
-	forecastHandler := httpAdapter.NewForecastHandler(forecastUC)
+	// Init HTTP handler
+	ingestionHandler := operations.NewIngestionHandler(ingestionUC)
+
+	// Placeholder handlers for routes that aren't implemented yet
+	type placeholderHandler struct{}
+	placeholder := &placeholderHandler{}
 
 	// Build router
-	router := httpAdapter.NewIngestionRouter(httpAdapter.IngestionRouterDeps{
+	router := operations.NewIngestionRouter(operations.IngestionRouterDeps{
 		Validator:   jwtValidator,
 		Users:       userRepo,
 		Memberships: membershipRepo,
 		AuditRepo:   auditRepo,
 		Ingestion:   ingestionHandler,
-		Analysis:    analysisHandler,
-		Forecast:    forecastHandler,
+		Analysis:    placeholder,
+		Forecast:    placeholder,
+		CashStory:   placeholder,
+		Decision:    placeholder,
 	})
 
-	// Start command consumer (background goroutine) - only if RabbitMQ is enabled
-	if rmqConn != nil {
-		consumerCh, err := rmqConn.Channel()
-		if err != nil {
-			return fmt.Errorf("opening consumer channel: %w", err)
-		}
-		defer consumerCh.Close()
-
-		if err := consumerCh.Qos(cfg.RabbitMQ.PrefetchCount, 0, false); err != nil {
-			return fmt.Errorf("setting consumer QoS: %w", err)
-		}
-
-		commandHandler := mq.NewIngestionCommandHandler(mq.IngestionWorkerDeps{
-			Jobs:        jobRepo,
-			Idempotency: idempotencyRepo,
-			Bank:        integrations.NewStubBankProvider(),
-			Accounting:  integrations.NewStubAccountingProvider(),
-		})
-
-		consumer := mq.NewConsumer(consumerCh, mq.QueueCommandsIngestion, commandHandler)
-		go func() {
-			if err := consumer.Start(ctx); err != nil {
-				log.Error().Err(err).Msg("command consumer error")
-			}
-		}()
-		log.Info().Msg("rabbitmq consumer started")
-	}
-
-	// Start analysis consumer (runs analysis on analysis.requested events) - only if RabbitMQ is enabled
-	if rmqConn != nil {
-		analysisCh, err := rmqConn.Channel()
-		if err != nil {
-			return fmt.Errorf("opening analysis consumer channel: %w", err)
-		}
-		defer analysisCh.Close()
-		if err := analysisCh.Qos(cfg.RabbitMQ.PrefetchCount, 0, false); err != nil {
-			return fmt.Errorf("setting analysis consumer QoS: %w", err)
-		}
-		analysisMsgHandler := worker.NewAnalysisMessageHandler(analysisUC, publisher)
-		analysisConsumer := mq.NewConsumer(analysisCh, mq.QueueAnalysisRequested, analysisMsgHandler)
-		go func() {
-			if err := analysisConsumer.Start(ctx); err != nil {
-				log.Error().Err(err).Msg("analysis consumer error")
-			}
-		}()
-		log.Info().Msg("analysis consumer started")
-	}
+	// RabbitMQ consumers disabled (RabbitMQ connection not initialized)
+	log.Info().Msg("RabbitMQ consumers disabled - running in HTTP-only mode")
 
 	// Start HTTP server
 	srv := &http.Server{

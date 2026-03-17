@@ -1,6 +1,7 @@
 package middleware
 
 import (
+"github.com/finch-co/cashflow/internal/models"
 	"net/http"
 	"strings"
 
@@ -9,12 +10,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/finch-co/cashflow/internal/auth"
-	"github.com/finch-co/cashflow/internal/domain"
 )
 
 // KeycloakAuth validates Keycloak-issued JWTs (RS256 via JWKS) and populates
 // context with user subject, email, tenant_id, and client roles.
-func KeycloakAuth(validator *auth.Validator, audit domain.AuditLogRepository) func(http.Handler) http.Handler {
+func KeycloakAuth(validator *auth.Validator, audit models.AuditLogRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -33,8 +33,8 @@ func KeycloakAuth(validator *auth.Validator, audit domain.AuditLogRepository) fu
 			if err != nil {
 				log.Warn().Err(err).Str("ip", r.RemoteAddr).Msg("token validation failed")
 				// Audit: token_invalid
-				_ = audit.Create(r.Context(), domain.CreateAuditLogInput{
-					Action:    domain.AuditTokenInvalid,
+				_ = audit.Create(r.Context(), models.CreateAuditLogInput{
+					Action:    models.AuditTokenInvalid,
 					IPAddress: r.RemoteAddr,
 					UserAgent: r.UserAgent(),
 					Metadata:  map[string]any{"error": err.Error()},
@@ -46,22 +46,22 @@ func KeycloakAuth(validator *auth.Validator, audit domain.AuditLogRepository) fu
 			ctx := r.Context()
 
 			// Set Keycloak subject
-			ctx = domain.ContextWithUserSub(ctx, claims.Subject)
+			ctx = models.ContextWithUserSub(ctx, claims.Subject)
 
 			// Set email
 			if claims.Email != "" {
-				ctx = domain.ContextWithUserEmail(ctx, claims.Email)
+				ctx = models.ContextWithUserEmail(ctx, claims.Email)
 			}
 
 			// Set tenant_id from custom claim
 			if claims.TenantID != "" {
 				if tid, err := uuid.Parse(claims.TenantID); err == nil {
-					ctx = domain.ContextWithTenantID(ctx, tid)
+					ctx = models.ContextWithTenantID(ctx, tid)
 				}
 			}
 
 			// Set client roles
-			ctx = domain.ContextWithClientRoles(ctx, claims.ClientRoles)
+			ctx = models.ContextWithClientRoles(ctx, claims.ClientRoles)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -74,10 +74,10 @@ func TenantFromHeader(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		if _, ok := domain.TenantIDFromContext(ctx); !ok {
+		if _, ok := models.TenantIDFromContext(ctx); !ok {
 			if tenantHeader := r.Header.Get("X-Tenant-ID"); tenantHeader != "" {
 				if tid, err := uuid.Parse(tenantHeader); err == nil {
-					ctx = domain.ContextWithTenantID(ctx, tid)
+					ctx = models.ContextWithTenantID(ctx, tid)
 				}
 			}
 		}
@@ -89,7 +89,7 @@ func TenantFromHeader(next http.Handler) http.Handler {
 // RequireTenant ensures tenant_id is present in context.
 func RequireTenant(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := domain.TenantIDFromContext(r.Context()); !ok {
+		if _, ok := models.TenantIDFromContext(r.Context()); !ok {
 			writeError(w, http.StatusForbidden, "tenant context required")
 			return
 		}
@@ -116,37 +116,37 @@ func TenantFromRouteParam(param string) func(http.Handler) http.Handler {
 			}
 
 			ctx := r.Context()
-			if existingTenantID, ok := domain.TenantIDFromContext(ctx); ok && existingTenantID != routeTenantID {
+			if existingTenantID, ok := models.TenantIDFromContext(ctx); ok && existingTenantID != routeTenantID {
 				writeError(w, http.StatusForbidden, "tenant mismatch")
 				return
 			}
 
-			ctx = domain.ContextWithTenantID(ctx, routeTenantID)
+			ctx = models.ContextWithTenantID(ctx, routeTenantID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
 // RequireTenantMembership ensures the authenticated user belongs to the tenant in context.
-func RequireTenantMembership(memberships domain.MembershipRepository) func(http.Handler) http.Handler {
+func RequireTenantMembership(memberships models.MembershipRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			tenantID, ok := domain.TenantIDFromContext(ctx)
+			tenantID, ok := models.TenantIDFromContext(ctx)
 			if !ok {
 				writeError(w, http.StatusForbidden, "tenant context required")
 				return
 			}
 
-			userID, ok := domain.UserIDFromContext(ctx)
+			userID, ok := models.UserIDFromContext(ctx)
 			if !ok {
 				writeError(w, http.StatusUnauthorized, "user context required")
 				return
 			}
 
 			if _, err := memberships.GetByTenantAndUser(ctx, tenantID, userID); err != nil {
-				if err == domain.ErrNotFound {
+				if err == models.ErrNotFound {
 					writeError(w, http.StatusForbidden, "user is not a member of this tenant")
 					return
 				}
@@ -169,10 +169,10 @@ func RequireTenantMembership(memberships domain.MembershipRepository) func(http.
 func RequirePermission(perm auth.Permission) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			roles := domain.ClientRolesFromContext(r.Context())
+			roles := models.ClientRolesFromContext(r.Context())
 			perms := auth.ResolvePermissions(roles)
 			if !auth.HasPermission(perms, perm) {
-				sub, _ := domain.UserSubFromContext(r.Context())
+				sub, _ := models.UserSubFromContext(r.Context())
 				log.Warn().
 					Str("sub", sub).
 					Str("permission", string(perm)).
@@ -188,20 +188,20 @@ func RequirePermission(perm auth.Permission) func(http.Handler) http.Handler {
 // ProvisionUser upserts the user record from JWT claims on every authenticated request.
 // This ensures users are automatically provisioned in the local DB when they
 // first authenticate via Keycloak.
-func ProvisionUser(users domain.UserRepository) func(http.Handler) http.Handler {
+func ProvisionUser(users models.UserRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			sub, ok := domain.UserSubFromContext(ctx)
+			sub, ok := models.UserSubFromContext(ctx)
 			if !ok {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			email, _ := domain.UserEmailFromContext(ctx)
+			email, _ := models.UserEmailFromContext(ctx)
 
 			// Upsert: create or update the user from Keycloak claims
-			user, err := users.Upsert(ctx, domain.UpsertUserInput{
+			user, err := users.Upsert(ctx, models.UpsertUserInput{
 				Sub:   sub,
 				Email: email,
 			})
@@ -212,7 +212,7 @@ func ProvisionUser(users domain.UserRepository) func(http.Handler) http.Handler 
 			}
 
 			// Set internal user ID in context
-			ctx = domain.ContextWithUserID(ctx, user.ID)
+			ctx = models.ContextWithUserID(ctx, user.ID)
 			_ = users.UpdateLastLogin(ctx, user.ID)
 
 			next.ServeHTTP(w, r.WithContext(ctx))

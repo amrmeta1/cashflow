@@ -1,88 +1,90 @@
-import { tenantApi } from "./client";
-import { MOCKS_ENABLED } from "./mock-data";
-
-export interface DailyBriefItem {
-  id: string;
-  textAr: string;
-  textEn: string;
-}
+// Daily Treasury Brief API
+import { tenantApi } from './client';
 
 export interface DailyBriefData {
-  risks: DailyBriefItem[];
-  opportunities: DailyBriefItem[];
-  recommendations: DailyBriefItem[];
-  confidence: number;
-  dataQuality: number;
+  date: string;
+  summary: string;
+  cash_position?: number;
+  runway_days?: number;
+  daily_burn_rate?: number;
+  inflows_30d?: number;
+  outflows_30d?: number;
+  top_risk?: string;
+  top_opportunity?: string;
+  recommended_action?: string;
+  confidence?: number;
+  dataQuality?: number;
   lastUpdated: string;
+  risks?: Array<{ id: string; textEn: string; textAr: string }>;
+  opportunities?: Array<{ id: string; textEn: string; textAr: string }>;
+  recommendations?: Array<{ id: string; textEn: string; textAr: string }>;
 }
 
-export interface DailyBriefResponse {
-  data: DailyBriefData;
-}
-
-// Mock data for development
-const MOCK_BRIEF: DailyBriefData = {
-  risks: [
-    { 
-      id: "r1", 
-      textAr: "فاتورة #INV-2847 متأخرة ٧ أيام — ٢٨,٠٠٠ ر.س", 
-      textEn: "Invoice #INV-2847 overdue 7 days — 28,000 SAR" 
-    },
-    { 
-      id: "r2", 
-      textAr: "مصروف المرافق أعلى ٤٠٪ من المتوسط", 
-      textEn: "Utility spend 40% above 3-month average" 
-    },
-  ],
-  opportunities: [
-    { 
-      id: "o1", 
-      textAr: "تحويل ٢٠٠,٠٠٠ ر.س إلى وديعة عالية العائد", 
-      textEn: "Move 200,000 to high-yield deposit" 
-    },
-    { 
-      id: "o2", 
-      textAr: "إيرادات خدمات متوقعة اليوم ٢٣,٠٠٠ ر.س", 
-      textEn: "Expected service revenue today 23,000 SAR" 
-    },
-  ],
-  recommendations: [
-    { 
-      id: "rec1", 
-      textAr: "متابعة الفاتورة المتأخرة وإرسال تذكير واتساب", 
-      textEn: "Follow up on overdue invoice and send WhatsApp reminder" 
-    },
-    { 
-      id: "rec2", 
-      textAr: "محاكاة تحويل جزء من الرصيد إلى وديعة", 
-      textEn: "Simulate moving part of balance to deposit" 
-    },
-    { 
-      id: "rec3", 
-      textAr: "إقرار ضريبة القيمة المضافة مستحق خلال ١٢ يوماً", 
-      textEn: "VAT filing due in 12 days — documents ready" 
-    },
-  ],
-  confidence: 82,
-  dataQuality: 91,
-  lastUpdated: new Date().toISOString(),
-};
-
-export async function getDailyBrief(tenantId: string): Promise<DailyBriefData> {
-  if (MOCKS_ENABLED) {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return MOCK_BRIEF;
-  }
-
+/**
+ * Get daily treasury brief for a tenant
+ * @param tenantId - Tenant UUID
+ * @param date - Optional date (defaults to today)
+ */
+export async function getDailyBrief(
+  tenantId: string,
+  date?: string
+): Promise<DailyBriefData> {
   try {
-    const response = await tenantApi.get<DailyBriefResponse>(
-      `/tenants/${tenantId}/ai/daily-brief`
-    );
-    return response.data;
+    // Try the dedicated daily-brief endpoint
+    const endpoint = date
+      ? `/api/v1/tenants/${tenantId}/daily-brief?date=${date}`
+      : `/api/v1/tenants/${tenantId}/daily-brief`;
+    
+    const response = await tenantApi.get(endpoint);
+    return response as DailyBriefData;
   } catch (error) {
-    // Fallback to mock data if API fails
-    console.warn("Failed to fetch daily brief, using mock data:", error);
-    return MOCK_BRIEF;
+    // Fallback to insights endpoint if daily-brief not available
+    console.warn('Daily brief endpoint not available, trying insights fallback:', error);
+    try {
+      const insights = await tenantApi.get(`/api/v1/tenants/${tenantId}/insights`);
+      
+      // Transform insights response to DailyBriefData format
+      return {
+        date: new Date().toISOString(),
+        summary: 'Treasury insights summary',
+        lastUpdated: new Date().toISOString(),
+        confidence: 0,
+        dataQuality: 0,
+        risks: Array.isArray(insights) 
+          ? insights.filter((i: any) => i.type === 'risk').map((i: any) => ({
+              id: i.id,
+              textEn: i.title,
+              textAr: i.titleAr || i.title
+            }))
+          : [],
+        opportunities: Array.isArray(insights)
+          ? insights.filter((i: any) => i.type === 'opportunity').map((i: any) => ({
+              id: i.id,
+              textEn: i.title,
+              textAr: i.titleAr || i.title
+            }))
+          : [],
+        recommendations: Array.isArray(insights)
+          ? insights.filter((i: any) => i.type === 'recommendation').map((i: any) => ({
+              id: i.id,
+              textEn: i.title,
+              textAr: i.titleAr || i.title
+            }))
+          : [],
+      };
+    } catch (fallbackError) {
+      // Return empty brief if both endpoints fail
+      console.warn('Both daily-brief and insights endpoints failed:', fallbackError);
+      return {
+        date: new Date().toISOString(),
+        summary: 'Daily brief data not available yet',
+        lastUpdated: new Date().toISOString(),
+        confidence: 0,
+        dataQuality: 0,
+        risks: [],
+        opportunities: [],
+        recommendations: [],
+      };
+    }
   }
 }

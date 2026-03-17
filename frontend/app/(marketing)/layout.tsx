@@ -1,8 +1,8 @@
 "use client";
 
 import { useI18n } from "@/lib/i18n/context";
-import { MarketingNavbar } from "@/components/marketing/marketing-navbar";
-import { LandingFooter } from "@/components/marketing/landing-footer";
+import { MarketingNavbar } from "@/components/shared/marketing/marketing-navbar";
+import { LandingFooter } from "@/components/shared/marketing/landing-footer";
 
 export default function MarketingLayout({
   children,
